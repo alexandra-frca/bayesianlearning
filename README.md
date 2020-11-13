@@ -1,2 +1,2 @@
-Quantum parameter estimation using bayesian learning.
+Quantum parameter estimation using Bayesian learning.
 (Alexandra's Master's project)
