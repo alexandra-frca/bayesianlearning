@@ -4,8 +4,9 @@ Hamiltonian learning implementation for a simple precession example, using both
 offline and adaptive Bayesian inference.
 
 The qubit is assumed to be initialized at state |+> for each iteration, and to
-evolve under H = f*sigma_z/2 (where f is the parameter to be estimated), apart
-from the exponential decay resulting from the presence of decoherence.
+evolve under H = f*sigma_z/2, apart from the exponential decay resulting from 
+the presence of decoherence. Estimation is performed for both the precession
+frequency and the coherence time (or its inverse).
 
 A sequential Monte Carlo approximation is used to represent the probability 
 distributions, along with Liu-West resampling.
