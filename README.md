@@ -1,7 +1,10 @@
-Quantum parameter estimation using Bayesian learning (Alexandra's Master's project)
+# Quantum parameter estimation using Bayesian learning 
 
-The most up-to-date file is 'precession_2d.py', which estimates a precession frequency plus a decay factor. 
+## (Alexandra's Master's project)
 
-'precession_1d.py' estimates the frequency only, assuming no decoherence.
+The most up to date file is `precession_2d.py` which estimates a precession frequency plus a decay factor. 
 
-'likelihoodfree.py' is similar to 'precession_1d.py', but doesn't rely on the reconstruction of the likelihood function (requiring only a sample outcome at each step).
+`precession_1d.py` estimates the frequency only, assuming the absence of decoherence.
+
+`likelihoodfree.py` is similar to `precession_1d.py `, but doesn't rely on the reconstruction of the likelihood function 
+(requiring only a sample outcome at each step).
