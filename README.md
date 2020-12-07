@@ -7,3 +7,5 @@ The most up to date files are `precession_2d.py` and `precession_2d_SHMC.py`, bo
 
 `likelihoodfree.py` is similar to `precession_1d.py `, but doesn't rely on the reconstruction of the likelihood function 
 (requiring only a sample outcome per particle per step).
+
+The folder **Simulation Methods** contains the implementations of Monte Carlo sampling algorithms for several target probability densities.
