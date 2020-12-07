@@ -7,12 +7,18 @@ The qubit is assumed to be initialized at state |+> for each iteration, and to
 evolve under H = f*sigma_z/2, where f is the parameter to be estimated.
 
 A sequential Monte Carlo approximation is used to represent the probability 
-distributions, along with Liu-West resampling.
+distributions, using Hamiltonian Monte Carlo mutation steps.
 """
 
-import sys, random, numpy as np, matplotlib.pyplot as plt
+import sys, random, matplotlib.pyplot as plt
+from autograd import grad, numpy as np
+np.seterr(all='warn')
 
-N_particles = 100 # Number of samples used to represent the probability
+dim=1
+total_HMC, accepted_HMC = 0, 0
+total_MH, accepted_MH = 0, 0
+
+N_particles = 1000 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
 f_real = 0 # The actual precession frequency we mean to estimate.
@@ -69,42 +75,272 @@ def simulate(test_f, t):
     p=np.cos(test_f*t/2)**2
     return p 
 
-def resample(f_particle, distribution, resampled_distribution, 
-             a=0.85):
+def target_U(test_f,t):
     '''
-    Resamples a particle from a given amount of times and adds the results to 
-    a previous distribution. Uniform weights are attributed to the resampled 
-    particles; the distribution is caracterized by particle density.
-    For a=0, the resampling works as a bootstrap filter.
+    Evaluates the target "energy" associated to the likelihood at a time t seen
+    as a probability density, given a parameter for the fixed form Hamiltonian. 
     
     Parameters
     ----------
-    f_particle: float
-        The frequency particle to be resampled.
-    distribution: dict
-        , with (key,value):=(frequency particle,importance weight)
-        The prior distribution (SMC approximation).
-    resampled_distribution: dict
-        , with (key,value):=(frequency particle,importance weight)
-        The distribution (SMC approximation) in the process of being resampled. 
-        When returning, it will have been updated with the freshly resampled 
-        particle(s).
-    a: float, optional
-        The Liu-West filtering parameter (Default is 0.8).
+    particle: float
+        The frequency to be used for the likelihood.
+    t: float
+        The evolution time between the initialization and the projection.
+        
+    Returns
+    -------
+    U: float
+        The value of the "energy".
     '''
-    current_SMCmean, current_stdev = SMCparameters(distribution)
-    # Sample a positive frequency particle.
-    new_particle=-1
-    while (new_particle<=0):
-        new_particle = np.random.normal(a*f_particle+(1-a)*current_SMCmean,
-                                      scale=(1-a**2)**0.5*current_stdev)
-        # Avoid repeated particles for variety.
-        if new_particle in resampled_distribution:
-            new_particle = -1 
-    # Attribute uniform weights to the resampled particles.
-    resampled_distribution[str(new_particle)] = 1/N_particles
+    likelihood = np.cos(test_f*t/2)**2
+    U = -np.log(likelihood)
+    
+    return(U)
 
-def bayes_update(distribution, t, outcome, threshold=N_particles/2):
+def U_gradient(test_f,t,autograd=False):
+    '''
+    Evaluates the derivative of the target "energy" associated to the likelihood 
+    at a time t seen as a probability density, given a frequency for the fixed 
+    form Hamiltonian. 
+    
+    Parameters
+    ----------
+    test_f: float
+        The frequency to be used for the likelihood.
+    t: float
+        The evolution time between the initialization and the projection.
+    autograd: bool, optional
+        Whether to use automatic differenciation (Default is False).
+        
+    Returns
+    -------
+    DU: float
+        The derivative of the "energy".
+    '''
+    if autograd: 
+        DU_f = grad(target_U)
+        DU = DU_f(test_f,t)
+    else:
+        DU=np.sin(test_f*t)*t/np.cos(test_f*t/2)
+    return(DU)
+
+def gaussian(x, mu, sigma, normalize=False):
+    '''
+    Evaluates a gaussian function at a given point for some specified set of
+    parameters.
+    
+    Parameters
+    ----------
+    x: float
+        The point at which the function is to be evaluated.
+    mu: float
+        The mean to be used for the gaussian function.
+    sigma: float
+        The standard deviation to be used for the gaussian function.
+    normalize: bool, optional
+        Whether to normalize the result (Default is False).
+        
+    Returns
+    -------
+    e: float
+        The value of the gaussian function at the provided point.
+    '''
+    power = -(x-mu)**2/(2*sigma**2)
+    if not normalize:
+        e = np.exp(power)
+        return e
+    else:
+        norm = (2*np.pi*sigma**2)**0.5  
+        e = e/norm
+        return e
+
+def metropolis_hastings_step(t, particle, sigma=1, left_constraint = 0,
+                             right_constraint=10): 
+    '''
+    Performs a Metropolis-Hastings mutation on a given particle, using a 
+    gaussian function for the proposals.
+    
+    Parameters
+    ----------
+    t: float
+        The time at which the current iteration's measurement was performed.
+        This is relevant because the target function and its derivative are 
+        time-dependent.
+    particle: float
+        The particle to undergo a mutation step.
+    sigma: float, optional
+        The standard deviation to be used for the normal distribution used for 
+        the proposal (Default is 1).
+    left_constraint: float
+        The leftmost bounds to be enforced for the particle's motion.
+    right_constraint: float
+        The rightmost bounds to be enforced for the particle's motion.
+        
+    Returns
+    -------
+    particle: float
+        The mutated particle.
+    p: float
+        The acceptance probability to be used for the evolved particle as a 
+        Monte Carlo proposal.
+    '''
+    # Start with any invalid value.
+    new_particle = left_constraint-1
+    
+    # Get a proposal that satisfies the constraints.
+    while (new_particle <= left_constraint or new_particle >= right_constraint):
+        new_particle = np.random.normal(particle, sigma)
+        
+    # Compute the probabilities of transition for the acceptance probability.
+    p = simulate(t,new_particle)*gaussian(particle,new_particle,sigma)/ \
+        (simulate(t,particle)*gaussian(new_particle,particle,sigma))
+    return new_particle,p
+
+def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
+                      left_constraint = 0, right_constraint=10):    
+    '''
+    Simulates Hamiltonian dynamics for a given particle, using leapfrog 
+    integration.
+    
+    Parameters
+    ----------
+    t: float
+        The time at which the current iteration's measurement was performed.
+        This is relevant because the target function and its derivative are 
+        time-dependent.
+    initial_momentum: float
+        The starting momentum vector. 
+    initial_particle: float
+        The particle for which the Hamiltonian dynamics is to be simulated.
+    M: float
+        The mass to be used when simulating the Hamiltonian dynamics (a HMC 
+        tuning parameter).
+    L: int
+        The amount of integration steps to be used when simulating the 
+        Hamiltonian dynamics (a HMC tuning parameter).
+    eta: float
+        The integration stepsize to be used when simulating the Hamiltonian 
+        dynamics (a HMC tuning parameter).
+    left_constraints: float
+        The leftmost bound to be enforced for the particle's motion.
+    right_constraints: float
+        The rightmost bound to be enforced for the particle's motion.
+        
+    Returns
+    -------
+    particle: float
+        The particle having undergone motion.
+    p: float
+        The acceptance probability to be used for the evolved particle as a 
+        Monte Carlo proposal.
+    '''    
+    new_particle = initial_particle
+    DU = U_gradient(new_particle,t)
+    global f_real
+    
+    # Perform leapfrog integration according to Hamilton's equations.
+    new_momentum = initial_momentum - 0.5*eta*DU
+    for l in range(L):
+        new_particle = new_particle + eta*new_momentum/M
+        
+        # Enforce the constraint that both the frequency lie within the prior 
+        #distribution. 
+        # Should a limit be crossed, the position and momentum are chosen such 
+        #that the particle "rebounds".
+        if (new_particle <= left_constraint):
+            new_particle = -new_particle
+            new_momentum = -new_momentum
+        if (new_particle > right_constraint): # Use the upper limit from the prior.
+            new_particle = 10 - (new_particle-10)
+            new_momentum = -new_momentum
+        if (l != L-1):
+            DU = U_gradient(new_particle,t)
+            new_particle = new_particle - eta*DU
+    new_momentum = new_momentum - 0.5*eta*DU
+
+    p = np.exp(target_U(initial_particle,t)-target_U(new_particle,t)+
+            initial_momentum**2/(2*M)-new_momentum**2/(2*M))
+    
+    '''
+    if (p<0.1):
+        sys.exit('p too small')
+    '''
+    
+    return new_particle, p
+        
+first = True
+def hamiltonian_MC_step(t, point, M=1, L=20, eta=10**-4, threshold=0.1):
+    '''
+    Performs a Hamiltonian Monte Carlo mutation on a given particle.
+    
+    Parameters
+    ----------
+    t: float
+        The time at which the current iteration's measurement was performed.
+        This is relevant because the target function and its derivative are 
+        time-dependent.
+    particle: float
+        The frequency particle to undergo a mutation step.
+    M: float, optional
+        The mass to be used when simulating the Hamiltonian dynamics (a HMC 
+        tuning parameter) (Default is 1).
+    L: int, optional
+        The amount of integration steps to be used when simulating the 
+        Hamiltonian dynamics (a HMC tuning parameter) (Default is 20).
+    eta: float, optional
+        The integration stepsize to be used when simulating the Hamiltonian 
+        dynamics (a HMC tuning parameter) (Default is exp(-4)).
+    threshold: float, optional
+        The highest HMC acceptance rate that should trigger a Metropolis-
+        -Hastings mutation step (as an alternative to a  HMC mutation step) 
+        (Default is 0.1). 
+        
+    Returns
+    -------
+    particle: float
+        The mutated frequency particle.
+    '''
+    if (threshold<1):
+        # Perform a Hamiltonian Monte Carlo mutation.
+        global first
+        if first:
+            if (M!=1):
+                mass = "cov"
+            else:
+                mass = "1"
+            print("HMC: M=%s, L=%d, eta=%f" % (mass,L,eta))
+            first = False
+            
+        global total_HMC, accepted_HMC, total_MH, accepted_MH
+        initial_momentum = np.random.normal(0, scale=M)
+        new_point, p = simulate_dynamics(t,initial_momentum,point,M,L,eta)
+    else:
+        p = 0
+        
+    # If the Hamiltonian Monte Carlo acceptance probability is too low,
+    #a Metropolis-Hastings mutation will be perform instead.
+    # This is meant to saufegard the termination of the program if the leapfrog
+    #integration is too inaccurate for a given set of parameters and experiment
+    #controls.
+    if (p < threshold):
+        MH = True
+        new_point, p = metropolis_hastings_step(t,point,sigma=M)
+        total_MH += 1
+    else:
+        MH = False
+        total_HMC += 1
+        
+    a = min(1,p)
+    if (np.random.rand() < a):
+        if MH:
+            accepted_MH += 1
+        else:
+            accepted_HMC += 1
+        return(new_point)
+    else:
+        return(point)
+
+def bayes_update(distribution, t, outcome):
     '''
     Updates a prior distribution according to the outcome of a measurement, 
     using Bayes' rule. 
@@ -121,41 +357,33 @@ def bayes_update(distribution, t, outcome, threshold=N_particles/2):
         it. The reference (t=0) is taken as the time of initialization.
     outcome: int
         The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    threshold: float, optional
-        The threshold inverse participation ratio for resampling 
-        (Default is N_particles/2). For threshold=0, no resampling takes place.
     '''
     global N_particles
-    acc_weight = 0
-    acc_squared_weight = 0
     
-    # Calculate the weights.
+    # Update the weights.
     for particle in distribution:
         p1 = simulate(float(particle),t)
         if (outcome==1):
-            w = p1*distribution[particle]
+            distribution[particle] = p1
         if (outcome==0):
-            w = (1-p1)*distribution[particle]
-        distribution[particle] = w
-        acc_weight += w
+            distribution[particle] = 1-p1
+    selected_particles = random.choices(list(distribution.keys()), 
+                                          weights=distribution.values(),
+                                          k=N_particles)
     
-    # Normalize the weights.
-    for particle in distribution:
-        w = distribution[particle]/acc_weight
-        distribution[particle] = w
-        acc_squared_weight += w**2 # The inverse participation ratio will be
-        #used to decide whether to resample or not.
-       
-    # Check whether the resampling condition applies, and resample if so.
-    if (1/acc_squared_weight <= threshold):
-        resampled_distribution = {}
-        for i in range(N_particles):
-            particle = random.choices(list(distribution.keys()), 
-                                  weights=distribution.values())[0]
-            resample(float(particle),distribution,
-                     resampled_distribution)
-        distribution = resampled_distribution
-
+    cov = SMCparameters(selected_particles)[1]**2
+    # The covariance will be used as a mass, so it must be positive.
+    if (cov==0):
+        return
+    
+    distribution.clear()
+    for particle in selected_particles:
+        repeated = True
+        while (repeated == True):
+            mutated_particle = hamiltonian_MC_step(t,float(particle),M=cov)
+            if (mutated_particle not in distribution):
+                repeated = False
+        distribution[mutated_particle] = 1
 
 def SMCparameters(distribution, stdev=True):
     '''
@@ -167,7 +395,7 @@ def SMCparameters(distribution, stdev=True):
     distribution: dict
         , with (key,value):=(frequency particle,importance weight)
         The distribution (SMC approximation) whose parameters are to be 
-        calculated.
+        calculated. This can also be a list if the weights are uniform.
     stdev: bool
         To be set to False if the standard deviation is not to be returned 
         (Default is True).
@@ -183,9 +411,10 @@ def SMCparameters(distribution, stdev=True):
     meansquare = 0
     for particle in distribution:
         f = float(particle)
-        w = distribution[particle]
-        mean += f*w
-        meansquare += f**2*w
+        mean += f
+        meansquare += f**2
+    mean = mean/N_particles
+    meansquare = meansquare/N_particles
     if not stdev:
         return mean
     stdev = abs(mean**2-meansquare)**0.5
@@ -239,7 +468,6 @@ def offline_estimation(distribution, f_max, steps, increment=0.08):
         mean,stdev = SMCparameters(distribution)
         means.append(mean)
         stdevs.append(stdev) 
-        
     cumulative_times = np.cumsum([i/(2*f_max) for i in range(steps+1)])
         
     return means, stdevs, cumulative_times
@@ -392,7 +620,6 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
             
         adaptive_t = adaptive_guess(distribution,k)
         cumulative_times.append(adaptive_t+cumulative_times[i-1])
-            
     return means, stdevs, cumulative_times
 
 def main():
@@ -403,19 +630,20 @@ def main():
     for f in fs:
         prior[str(f)] = 1/N_particles # We consider a flat prior up to f_max.
     
-    runs=1
+    runs=100
     steps = 30
     adapt_runs, off_runs = [], []
     adapt_errors, off_errors = [], []
     
     for i in range(runs):
-        if (i%(runs/10)==0):
-            sys.stdout.write('.');sys.stdout.flush();
         f_real = random.random()*f_max
         adapt_runs.append(adaptive_estimation(prior.copy(),steps,precision=0))
         off_runs.append(offline_estimation(prior.copy(),f_max,steps))
         adapt_errors.append(abs(adapt_runs[i][0][steps-1]-f_real))
         off_errors.append(abs(off_runs[i][0][steps-1]-f_real))
+        
+        if (i%(runs/10)==0):
+            sys.stdout.write('.');sys.stdout.flush();
         
     adapt_error = np.median(adapt_errors)
     adapt_stdevs = [np.median([s[i] for m,s,t in adapt_runs]) \
@@ -469,9 +697,19 @@ def main():
                                        off_error,
                                        off_precisions[steps+1-1]))
         
-    print("(n=%d; N=%d; f_max=%d; alpha=%.2f; runs=%d; 1d)" 
+    print("(n=%d; N=%d; f_max=%d; alpha=%.2f; runs=%d; 1d, SHMC)" 
           % (N_particles,steps,f_max,alpha_real,runs))
     
+    global total_HMC, accepted_HMC, total_MH, accepted_MH
+    print("* Percentage of HMC steps:  %.1f%%." 
+          % (100*total_HMC/(total_HMC+total_MH)))
+    if (total_HMC != 0):
+        print("* Hamiltonian Monte Carlo: %d%% mean particle acceptance rate." 
+              % round(100*accepted_HMC/total_HMC))
+    if (total_MH != 0):
+        print("* Metropolis-Hastings:     %d%% mean particle acceptance rate." 
+              % round(100*accepted_MH/total_MH))
+        
     fig, axs = plt.subplots(2,figsize=(8,8))
     
     x1 = np.array([i for i in range(steps+1)])
