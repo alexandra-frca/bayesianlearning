@@ -248,10 +248,10 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
         # Should a limit be crossed, the position and momentum are chosen such 
         #that the particle "rebounds".
         if (new_particle <= left_constraint):
-            new_particle = -new_particle
+            new_particle = left_constraint+(left_constraint-new_particle)
             new_momentum = -new_momentum
         if (new_particle > right_constraint): # Use the upper limit from the prior.
-            new_particle = 10 - (new_particle-10)
+            new_particle = right_constraint-(new_particle-right_constraint)
             new_momentum = -new_momentum
         if (l != L-1):
             DU = U_gradient(new_particle,t)

@@ -19,7 +19,7 @@ dim=2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
-N_particles = 25 # Number of samples used to represent the probability
+N_particles = 2500 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
 f_real, alpha_real = 0, 0 # The parameters we mean to estimate (a precession
@@ -97,9 +97,10 @@ def target_U(particle,t):
     test_f, test_alpha = particle
     likelihood = np.cos(test_f*t/2)**2*np.exp(-test_alpha*t)+\
         (1-np.exp(-test_alpha*t))/2
-    if (likelihood==0):
-        print("Likelihood is zero, cannot compute log.\n"
-              "Frequency: %f;\nAlpha: %f;\nTime: %f" % (test_f,test_alpha,t))
+    if (likelihood<=0):
+        print("Likelihood is %f, cannot compute log.\n"
+              "Frequency: %f;\nAlpha: %f;\nTime: %f" % 
+              (likelihood, test_f,test_alpha,t))
     U = -np.log(likelihood)
     #return (-np.log(simulate(particle,t)))
     return (U)
@@ -208,10 +209,8 @@ def metropolis_hastings_step(t, particle, M, factor=1,
     new_particle = np.array([left_constraints[i]-1 for i in range(dim)]) 
     
     # Get a proposal that satisfies the constraints.
-    while any([new_particle[i]<=left_constraints[i] 
-                   for i in range(len(new_particle))] + 
-                  [new_particle[i]>=right_constraints[i] 
-                   for i in range(len(new_particle))]):
+    while any([new_particle[i]<=left_constraints[i] for i in range(dim)] + 
+                  [new_particle[i]>=right_constraints[i] for i in range(dim)]):
         new_particle = np.array([np.random.normal(particle[i], Sigma[i][i])
                                  for i in range(dim)])
 
@@ -285,7 +284,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
                 new_momentum[i] = -new_momentum[i]
             if (new_particle[i] >= right_constraints[i]):
                 new_particle[i] = right_constraints[i]-\
-                    (new_particle[i]-left_constraints[i])
+                    (new_particle[i]-right_constraints[i])
                 new_momentum[i] = -new_momentum[i]
 
         if (l != L-1):
