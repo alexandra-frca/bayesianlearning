@@ -188,7 +188,7 @@ def metropolis_hastings_step(t, particle, sigma=1, left_constraint = 0,
     new_particle = left_constraint-1
     
     # Get a proposal that satisfies the constraints.
-    while (new_particle <= left_constraint or new_particle >= right_constraint):
+    while (new_particle < left_constraint or new_particle > right_constraint):
         new_particle = np.random.normal(particle, sigma)
         
     # Compute the probabilities of transition for the acceptance probability.
@@ -247,7 +247,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
         #distribution. 
         # Should a limit be crossed, the position and momentum are chosen such 
         #that the particle "rebounds".
-        if (new_particle <= left_constraint):
+        if (new_particle < left_constraint):
             new_particle = left_constraint+(left_constraint-new_particle)
             new_momentum = -new_momentum
         if (new_particle > right_constraint): # Use the upper limit from the prior.

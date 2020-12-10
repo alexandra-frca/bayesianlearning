@@ -389,7 +389,7 @@ def adaptive_guess(distribution, k, scale, guesses):
     return(adaptive_ts[np.argmax(utilities)])
     
 first_adaptive_estimation = True
-def adaptive_estimation(distribution, steps, scale=[1.,100.], k=3.5,
+def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2.5,
                         guesses=1, precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
@@ -486,7 +486,7 @@ def main():
             prior[key] = 1/N_particles
     
     runs=10
-    steps = 30
+    steps = 50
     adapt_runs, off_runs = [], []
     parameters = []
     
@@ -516,7 +516,6 @@ def main():
         adapt_stdevs_q1s, adapt_stdevs_q3s = [[],[]], [[],[]], [[],[]],\
                 [[],[]], [[],[]], [[],[]]
     
-    dim = len(parameters[0]) # Any of the runs will have dim real values.
     for p in range(dim):
         adapt_error[p] = np.median(adapt_errors[p])
         adapt_stdevs[p] = [np.median([s[i][p] for m,s,t in adapt_runs]) \

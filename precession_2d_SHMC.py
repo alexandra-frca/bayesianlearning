@@ -209,8 +209,8 @@ def metropolis_hastings_step(t, particle, M, factor=1,
     new_particle = np.array([left_constraints[i]-1 for i in range(dim)]) 
     
     # Get a proposal that satisfies the constraints.
-    while any([new_particle[i]<=left_constraints[i] for i in range(dim)] + 
-                  [new_particle[i]>=right_constraints[i] for i in range(dim)]):
+    while any([new_particle[i]<left_constraints[i] for i in range(dim)] + 
+                  [new_particle[i]>right_constraints[i] for i in range(dim)]):
         new_particle = np.array([np.random.normal(particle[i], Sigma[i][i])
                                  for i in range(dim)])
 
@@ -222,7 +222,7 @@ def metropolis_hastings_step(t, particle, M, factor=1,
                                        Sigma[i][i]) for i in range(dim)])
 
     p = simulate(new_particle,t)*inverse_transition_prob/ \
-        (simulate(new_particle,t)*transition_prob)
+        (simulate(particle,t)*transition_prob)
     return new_particle,p
     
 def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
@@ -278,11 +278,11 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
         # Should a limit be crossed, the position and momentum are chosen such 
         #that the particle "rebounds".
         for i in range(dim):
-            if (new_particle[i] <= left_constraints[i]):
+            if (new_particle[i] < left_constraints[i]):
                 new_particle[i] = left_constraints[i]+\
                     (left_constraints[i]-new_particle[i])
                 new_momentum[i] = -new_momentum[i]
-            if (new_particle[i] >= right_constraints[i]):
+            if (new_particle[i] > right_constraints[i]):
                 new_particle[i] = right_constraints[i]-\
                     (new_particle[i]-right_constraints[i])
                 new_momentum[i] = -new_momentum[i]
@@ -346,7 +346,7 @@ def hamiltonian_MC_step(t, particle, M=np.identity(2), L=50, eta=10**-6,
             if not np.array_equal(M,np.identity(2)):
                 mass = "Cov"
             else:
-                mass = "1"
+                mass = "I"
             print("HMC: M=%s, L=%d, eta=%.10f" % (mass,L,eta))
             first_hamiltonian_MC_step = False
             
@@ -416,7 +416,7 @@ def bayes_update(distribution, t, outcome):
                                           k=N_particles)
     
     stdevs = SMCparameters(selected_particles)[1]
-    Cov = np.array([[stdevs[0]**2,0.],[0.,stdevs[1]**2]]) 
+    Cov = np.diag(stdevs**2)
     
     # Check for singularity (the covariance matrix will be used as a mass 
     #matrix, which must be invertible).
@@ -638,7 +638,7 @@ def adaptive_guess(distribution, k, scale, guesses):
     return(adaptive_ts[np.argmax(utilities)])
     
 first_adaptive_estimation = True
-def adaptive_estimation(distribution, steps, scale=[1.,100.], k=3.5,
+def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2.5,
                         guesses=1, precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
@@ -735,7 +735,7 @@ def main():
             prior[key] = 1/N_particles
     
     runs=1
-    steps = 30
+    steps = 50
     adapt_runs, off_runs = [], []
     parameters = []
     
