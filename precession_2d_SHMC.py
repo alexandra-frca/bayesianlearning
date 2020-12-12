@@ -167,7 +167,8 @@ def gaussian(x, mu, sigma, normalize=False):
         e = e/norm
         return e
     
-def metropolis_hastings_step(t, particle, M, factor=1,
+first_metropolis_hastings_step = True
+def metropolis_hastings_step(t, particle, S=np.identity(2), factor=0.005,
                              left_constraints = [0,0], 
                              right_constraints=[10,0.1]):
     '''
@@ -182,7 +183,7 @@ def metropolis_hastings_step(t, particle, M, factor=1,
         time-dependent.
     particle: [float]
         The particle to undergo a mutation step.
-    M: [[float]]
+    S: [[float]]
         The covariance matrix that will determine the standard deviations
         of the normal distributions used for the proposal in each dimension
         (the dth diagonal element corresponding to dimension d).
@@ -202,9 +203,17 @@ def metropolis_hastings_step(t, particle, M, factor=1,
         The acceptance probability to be used for the evolved particle as a 
         Monte Carlo proposal.
     '''
+    global first_metropolis_hastings_step
+    if first_metropolis_hastings_step:
+      if not np.array_equal(S,np.identity(2)):
+          Cov = "Cov"
+      else:
+          Cov = "I"
+      print("MH:  S=%s, factor=%.4f" % (Cov,factor))
+      first_metropolis_hastings_step = False
 
     global dim
-    Sigma = factor*M
+    Sigma = factor*S
     # Start with any invalid point.
     new_particle = np.array([left_constraints[i]-1 for i in range(dim)]) 
     
@@ -306,7 +315,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
     return new_particle, p
         
 first_hamiltonian_MC_step = True
-def hamiltonian_MC_step(t, particle, M=np.identity(2), L=50, eta=10**-6, 
+def hamiltonian_MC_step(t, particle, M=np.identity(2), L=20, eta=0.001, 
                         threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
@@ -325,10 +334,10 @@ def hamiltonian_MC_step(t, particle, M=np.identity(2), L=50, eta=10**-6,
         matrix).
     L: int, optional
         The amount of integration steps to be used when simulating the 
-        Hamiltonian dynamics (a HMC tuning parameter) (Default is 50).
+        Hamiltonian dynamics (a HMC tuning parameter) (Default is 20).
     eta: float, optional
         The integration stepsize to be used when simulating the Hamiltonian 
-        dynamics (a HMC tuning parameter) (Default is exp(-6)).
+        dynamics (a HMC tuning parameter) (Default is exp(-3)).
     threshold: float, optional
         The highest HMC acceptance rate that should trigger a Metropolis-
         -Hastings mutation step (as an alternative to a  HMC mutation step) 
@@ -344,7 +353,7 @@ def hamiltonian_MC_step(t, particle, M=np.identity(2), L=50, eta=10**-6,
         global first_hamiltonian_MC_step
         if first_hamiltonian_MC_step:
             if not np.array_equal(M,np.identity(2)):
-                mass = "Cov"
+                mass = "Cov^-1"
             else:
                 mass = "I"
             print("HMC: M=%s, L=%d, eta=%.10f" % (mass,L,eta))
@@ -363,7 +372,8 @@ def hamiltonian_MC_step(t, particle, M=np.identity(2), L=50, eta=10**-6,
     #controls.
     if (p < threshold):
         MH = True
-        new_particle, p = metropolis_hastings_step(t,particle,M)
+        Cov = np.linalg.inv(M)
+        new_particle, p = metropolis_hastings_step(t,particle,S=Cov)
         total_MH += 1
     else:
         MH = False
@@ -418,10 +428,11 @@ def bayes_update(distribution, t, outcome):
     stdevs = SMCparameters(selected_particles)[1]
     Cov = np.diag(stdevs**2)
     
-    # Check for singularity (the covariance matrix will be used as a mass 
-    #matrix, which must be invertible).
+    # Check for singularity (the covariance matrix must be invertible).
     if (np.linalg.det(Cov) == 0): 
         return
+
+    Cov_inv = np.linalg.inv(Cov)
 
     # Perform a mutation step on each selected particle, imposing that the
     #particles be unique.
@@ -430,7 +441,7 @@ def bayes_update(distribution, t, outcome):
         repeated = True
         while (repeated == True):
             particle = np.frombuffer(key,dtype='float64')
-            mutated_particle = hamiltonian_MC_step(t,particle,M=Cov)
+            mutated_particle = hamiltonian_MC_step(t,particle,M=Cov_inv)
             key = mutated_particle.tobytes()
             if (key not in distribution):
                 repeated = False
@@ -566,7 +577,7 @@ def expected_utility(distribution, t, scale):
     p1=0
     for key in distribution:
         particle = np.frombuffer(key,dtype='float64')
-        p1 += simulate(particle,t)*distribution[key]
+        p1 += simulate(particle,t)
     p0 = 1-p1
         
     dist_0 = distribution.copy()
@@ -638,7 +649,7 @@ def adaptive_guess(distribution, k, scale, guesses):
     return(adaptive_ts[np.argmax(utilities)])
     
 first_adaptive_estimation = True
-def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2.5,
+def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2,
                         guesses=1, precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
@@ -734,7 +745,7 @@ def main():
             key = particle.tobytes()
             prior[key] = 1/N_particles
     
-    runs=1
+    runs=5
     steps = 50
     adapt_runs, off_runs = [], []
     parameters = []

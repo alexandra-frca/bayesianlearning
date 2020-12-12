@@ -154,8 +154,9 @@ def gaussian(x, mu, sigma, normalize=False):
         e = e/norm
         return e
 
-def metropolis_hastings_step(t, particle, sigma=1, left_constraint = 0,
-                             right_constraint=10): 
+first_metropolis_hastings_step = True
+def metropolis_hastings_step(t, particle, s=1, factor=0.05,
+                             left_constraint = 0,right_constraint=10): 
     '''
     Performs a Metropolis-Hastings mutation on a given particle, using a 
     gaussian function for the proposals.
@@ -168,9 +169,13 @@ def metropolis_hastings_step(t, particle, sigma=1, left_constraint = 0,
         time-dependent.
     particle: float
         The particle to undergo a mutation step.
-    sigma: float, optional
-        The standard deviation to be used for the normal distribution used for 
-        the proposal (Default is 1).
+    s: float, optional
+        The standard deviation to be multiplied by a factor and then used as 
+        standard deviation for the normal distribution used for the proposal 
+        (Default is 1).
+    factor: float, optional
+        The factor 's' should be be multiplied by to get the standard deviation
+        of the the normal distribution used for the proposal (Default is 0.05).
     left_constraint: float
         The leftmost bounds to be enforced for the particle's motion.
     right_constraint: float
@@ -184,6 +189,17 @@ def metropolis_hastings_step(t, particle, sigma=1, left_constraint = 0,
         The acceptance probability to be used for the evolved particle as a 
         Monte Carlo proposal.
     '''
+    global first_metropolis_hastings_step
+    if first_metropolis_hastings_step:
+      if (s!=1):
+          cov = "cov^-1"
+      else:
+          cov = "1"
+      print("MH:  s=%s, factor=%.4f" % (cov,factor))
+      first_metropolis_hastings_step = False
+
+    sigma = s*factor
+
     # Start with any invalid value.
     new_particle = left_constraint-1
     
@@ -196,7 +212,7 @@ def metropolis_hastings_step(t, particle, sigma=1, left_constraint = 0,
         (simulate(t,particle)*gaussian(new_particle,particle,sigma))
     return new_particle,p
 
-def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
+def simulate_dynamics(t, initial_momentum, initial_particle, m, L, eta,
                       left_constraint = 0, right_constraint=10):    
     '''
     Simulates Hamiltonian dynamics for a given particle, using leapfrog 
@@ -212,7 +228,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
         The starting momentum vector. 
     initial_particle: float
         The particle for which the Hamiltonian dynamics is to be simulated.
-    M: float
+    m: float
         The mass to be used when simulating the Hamiltonian dynamics (a HMC 
         tuning parameter).
     L: int
@@ -241,7 +257,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
     # Perform leapfrog integration according to Hamilton's equations.
     new_momentum = initial_momentum - 0.5*eta*DU
     for l in range(L):
-        new_particle = new_particle + eta*new_momentum/M
+        new_particle = new_particle + eta*new_momentum/m
         
         # Enforce the constraint that both the frequency lie within the prior 
         #distribution. 
@@ -250,7 +266,8 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
         if (new_particle < left_constraint):
             new_particle = left_constraint+(left_constraint-new_particle)
             new_momentum = -new_momentum
-        if (new_particle > right_constraint): # Use the upper limit from the prior.
+        if (new_particle > right_constraint): # Use the upper limit from the 
+        #prior.
             new_particle = right_constraint-(new_particle-right_constraint)
             new_momentum = -new_momentum
         if (l != L-1):
@@ -259,7 +276,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
     new_momentum = new_momentum - 0.5*eta*DU
 
     p = np.exp(target_U(initial_particle,t)-target_U(new_particle,t)+
-            initial_momentum**2/(2*M)-new_momentum**2/(2*M))
+            initial_momentum**2/(2*m)-new_momentum**2/(2*m))
     
     '''
     if (p<0.1):
@@ -269,7 +286,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, M, L, eta,
     return new_particle, p
         
 first = True
-def hamiltonian_MC_step(t, point, M=1, L=20, eta=10**-4, threshold=0.1):
+def hamiltonian_MC_step(t, point, m=1, L=20, eta=10**-5, threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
     
@@ -281,7 +298,7 @@ def hamiltonian_MC_step(t, point, M=1, L=20, eta=10**-4, threshold=0.1):
         time-dependent.
     particle: float
         The frequency particle to undergo a mutation step.
-    M: float, optional
+    m: float, optional
         The mass to be used when simulating the Hamiltonian dynamics (a HMC 
         tuning parameter) (Default is 1).
     L: int, optional
@@ -304,16 +321,16 @@ def hamiltonian_MC_step(t, point, M=1, L=20, eta=10**-4, threshold=0.1):
         # Perform a Hamiltonian Monte Carlo mutation.
         global first
         if first:
-            if (M!=1):
+            if (m!=1):
                 mass = "cov"
             else:
                 mass = "1"
-            print("HMC: M=%s, L=%d, eta=%f" % (mass,L,eta))
+            print("HMC: m=%s, L=%d, eta=%f" % (mass,L,eta))
             first = False
             
         global total_HMC, accepted_HMC, total_MH, accepted_MH
-        initial_momentum = np.random.normal(0, scale=M)
-        new_point, p = simulate_dynamics(t,initial_momentum,point,M,L,eta)
+        initial_momentum = np.random.normal(0, scale=m)
+        new_point, p = simulate_dynamics(t,initial_momentum,point,m,L,eta)
     else:
         p = 0
         
@@ -324,7 +341,7 @@ def hamiltonian_MC_step(t, point, M=1, L=20, eta=10**-4, threshold=0.1):
     #controls.
     if (p < threshold):
         MH = True
-        new_point, p = metropolis_hastings_step(t,point,sigma=M)
+        new_point, p = metropolis_hastings_step(t,point,s=1/m)
         total_MH += 1
     else:
         MH = False
@@ -380,7 +397,7 @@ def bayes_update(distribution, t, outcome):
     for particle in selected_particles:
         repeated = True
         while (repeated == True):
-            mutated_particle = hamiltonian_MC_step(t,float(particle),M=cov)
+            mutated_particle = hamiltonian_MC_step(t,float(particle),m=1/cov)
             if (mutated_particle not in distribution):
                 repeated = False
         distribution[mutated_particle] = 1
@@ -630,26 +647,55 @@ def main():
     for f in fs:
         prior[str(f)] = 1/N_particles # We consider a flat prior up to f_max.
     
-    runs=100
+    runs=10
     steps = 30
     adapt_runs, off_runs = [], []
     adapt_errors, off_errors = [], []
+    adapt_mses, off_mses = [], []
     
     for i in range(runs):
         f_real = random.random()*f_max
         adapt_runs.append(adaptive_estimation(prior.copy(),steps,precision=0))
         off_runs.append(offline_estimation(prior.copy(),f_max,steps))
+        
         adapt_errors.append(abs(adapt_runs[i][0][steps-1]-f_real))
+        adapt_mses.append((adapt_runs[i][0][steps-1]-f_real)**2)
         off_errors.append(abs(off_runs[i][0][steps-1]-f_real))
+        off_mses.append((off_runs[i][0][steps-1]-f_real)**2)
         
         if (i%(runs/10)==0):
             sys.stdout.write('.');sys.stdout.flush();
-        
-    adapt_error = np.median(adapt_errors)
-    adapt_stdevs = [np.median([s[i] for m,s,t in adapt_runs]) \
+    '''
+    The indexes in adapt_runs/off_runs are, by order: 
+        - Run number;
+        - Desired quantity (0 for mean, 1 for stdev, 2 for cumulative_time)
+        - Step number
+    '''
+
+    adapt_stdevs = [np.percentile([s[i] for m,s,t in adapt_runs],
+                                  50,interpolation='nearest') \
                    for i in range(steps+1)]
+        
+    ''' Use percentile with "nearest" interpolation for the standard deviation 
+    median so that the presented value actually corresponds to a run, because
+    it's more relevant to know the error corresponding to that specific run
+    than its median over all runs (to see how well the uncertainty covers the
+    error for a fixed run, rather than the independent medians for errors and
+    standard deviations which may be associated to different runs).
+    
+    We then get the error from the selected run (the one corresponding to the 
+    median of all final - i.e. last step - standard deviation values):
+    '''
+        
+    final_adapt_stdevs = [s[steps] for m,s,t in adapt_runs]
+    median_final_adapt_stdevs_index = final_adapt_stdevs.index(
+        adapt_stdevs[steps])
+    adapt_error = adapt_errors[median_final_adapt_stdevs_index]
+    adapt_mse = adapt_mses[median_final_adapt_stdevs_index]
+
     adapt_times = [np.median([t[i] for m,s,t in adapt_runs]) \
                    for i in range(steps+1)]
+        
     adapt_precisions_all = [([s[i]**2*t[i] for i in range(steps+1)]) \
                    for m,s,t in adapt_runs]
     adapt_precisions = [np.median([adapt_precisions_all[i][j] \
@@ -667,13 +713,22 @@ def main():
                                            for i in range(runs)], 75) \
                             for j in range(steps+1)]
     
-    print("\nAdaptive:\n- Standard deviation: %.2f\n- Error: %.2f\n"\
-          "- Final precision: %.2f" % (adapt_stdevs[steps+1-1], 
+    print("\nAdaptive:\n- Variance: %.4f\n- MSE: %.4f (actual error %.2f)\n"\
+          "- Final precision: %.2f" % (adapt_stdevs[steps]**2, 
+                                       adapt_mse,
                                        adapt_error, 
-                                       adapt_precisions[steps+1-1]))
-    off_error = np.median(off_errors)
-    off_stdevs = [np.median([s[i] for m,s,t in off_runs]) \
+                                       adapt_precisions[steps]))
+        
+    # Do the same thing as before for the standard deviations and errors.
+    off_stdevs = [np.percentile([s[i] for m,s,t in off_runs],
+                                  50,interpolation='nearest') \
                    for i in range(steps+1)]
+        
+    final_off_stdevs = [s[steps] for m,s,t in off_runs]
+    median_final_off_stdevs_index = final_off_stdevs.index(off_stdevs[steps])
+    off_error = off_errors[median_final_off_stdevs_index]
+    off_mse = off_mses[median_final_off_stdevs_index]
+        
     off_times = [np.median([t[i] for m,s,t in off_runs]) \
                    for i in range(steps+1)]
     off_precisions_all = [([s[i]**2*t[i] for i in range(steps+1)]) \
@@ -692,10 +747,11 @@ def main():
                                            for i in range(runs)], 75) \
                             for j in range(steps+1)]
     
-    print("Offline:\n- Standard deviation: %.2f\n- Error: %.2f\n"\
-          "- Final precision: %.2f" % (off_stdevs[steps+1-1], 
+    print("Offline:\n- Variance: %.4f\n- MSE: %.4f (actual error %.2f)\n"\
+          "- Final precision: %.2f" % (off_stdevs[steps]**2, 
+                                       off_mse,
                                        off_error,
-                                       off_precisions[steps+1-1]))
+                                       off_precisions[steps]))
         
     print("(n=%d; N=%d; f_max=%d; alpha=%.2f; runs=%d; 1d, SHMC)" 
           % (N_particles,steps,f_max,alpha_real,runs))
