@@ -649,7 +649,7 @@ def adaptive_guess(distribution, k, scale, guesses):
     return(adaptive_ts[np.argmax(utilities)])
     
 first_adaptive_estimation = True
-def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2,
+def adaptive_estimation(distribution, steps, scale=[1.,100.], k=1.25,
                         guesses=1, precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
@@ -702,7 +702,12 @@ def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2,
     stdevs.append(current_stdevs) 
     cumulative_times.append(0)
     
-    adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+    if (guesses==1):
+        adaptive_t = k/np.sum([scale[i]*(current_stdevs[i])**2 \
+                                for i in range(dim)])
+    else:
+        adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+        
     cumulative_times.append(adaptive_t)
 
     for i in range(1,steps+1):
@@ -724,7 +729,12 @@ def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2,
                 cumulative_times.append(cumulative_times[i-1])
             break
             
-        adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+        if (guesses==1):
+            adaptive_t = k/np.sum([scale[i]*(current_stdevs[i])**2 \
+                                    for i in range(dim)])
+        else:
+            adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+      
         cumulative_times.append(adaptive_t+cumulative_times[i-1])      
     return means, stdevs, cumulative_times
 
@@ -745,8 +755,8 @@ def main():
             key = particle.tobytes()
             prior[key] = 1/N_particles
     
-    runs=5
-    steps = 50
+    runs=1
+    steps = 100
     adapt_runs, off_runs = [], []
     parameters = []
     

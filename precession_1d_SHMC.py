@@ -379,7 +379,7 @@ def bayes_update(distribution, t, outcome):
     
     # Update the weights.
     for particle in distribution:
-        p1 = simulate(float(particle),t)
+        p1 = simulate(particle,t)
         if (outcome==1):
             distribution[particle] = p1
         if (outcome==0):
@@ -397,7 +397,8 @@ def bayes_update(distribution, t, outcome):
     for particle in selected_particles:
         repeated = True
         while (repeated == True):
-            mutated_particle = hamiltonian_MC_step(t,float(particle),m=1/cov)
+            mutated_particle = hamiltonian_MC_step(t,particle
+                                                   ,m=1/cov)
             if (mutated_particle not in distribution):
                 repeated = False
         distribution[mutated_particle] = 1
@@ -427,7 +428,7 @@ def SMCparameters(distribution, stdev=True):
     mean = 0
     meansquare = 0
     for particle in distribution:
-        f = float(particle)
+        f = particle
         mean += f
         meansquare += f**2
     mean = mean/N_particles
@@ -513,7 +514,7 @@ def expected_utility(distribution, time):
     # Obtain the probability of each oucome, given the current distribution.
     p1=0
     for particle in distribution:
-        p1 += simulate(float(particle),time)*distribution[particle]
+        p1 += simulate(particle,time)*distribution[particle]
     p0 = 1-p1
         
     dist_0 = distribution.copy()
@@ -534,7 +535,7 @@ def expected_utility(distribution, time):
     
     return(utility)
 
-def adaptive_guess(distribution, k, guesses=1):
+def adaptive_guess(distribution, k, guesses):
     '''
     Provides a guess for the evolution time to be used for a measurement,
     picked using the PGH, a particle guess heuristic (where the times are 
@@ -565,8 +566,8 @@ def adaptive_guess(distribution, k, guesses=1):
         while (delta==0):
             [f1, f2] = random.choices(list(distribution.keys()), 
                                       weights=distribution.values(), k=2)
-            delta = abs(float(f1)-float(f2))
-        time = k/delta**0.5
+            delta = abs(f1-f2)
+        time = k/delta
         if (guesses==1):
             return(time)
         adaptive_ts.append(time)
@@ -574,7 +575,7 @@ def adaptive_guess(distribution, k, guesses=1):
         utilities.append(expected_utility(distribution,t))
     return(adaptive_ts[np.argmax(utilities)])
 
-def adaptive_estimation(distribution, steps, precision=0, k=0.7):
+def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
     '''
     Estimates the precession frequency by adaptively performing a set of 
     experiments, using the outcome of each to update the prior distribution 
@@ -593,7 +594,7 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
         attaining the step number limit (Default is 0).
     k: float
         The proportionality constant to be used for the particle guess 
-        heuristic (Default is 0.7).
+        heuristic (Default is 1.25).
         
     Returns
     -------
@@ -613,8 +614,12 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
     means.append(mean)
     stdevs.append(stdev)
     cumulative_times.append(0)
-
-    adaptive_t = adaptive_guess(distribution,k)
+    
+    if (guesses==1):
+        adaptive_t = k/stdev
+    else:
+        adaptive_t = adaptive_guess(distribution,k,guesses)
+        
     cumulative_times.append(adaptive_t)
         
     for i in range(1,steps+1):
@@ -635,20 +640,26 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
                 cumulative_times.append(cumulative_times[i-1])
             break
             
-        adaptive_t = adaptive_guess(distribution,k)
+        if (guesses==1):
+            adaptive_t = k/stdev
+        else:
+            adaptive_t = adaptive_guess(distribution,k, guesses)
+            
         cumulative_times.append(adaptive_t+cumulative_times[i-1])
+            
     return means, stdevs, cumulative_times
 
 def main():
     global f_real, alpha_real, N_particles
     f_max = 10
-    fs = np.arange(f_max/N_particles,f_max,f_max/N_particles) 
+    fs = np.arange(f_max/N_particles,f_max+f_max/N_particles,
+                   2*f_max/N_particles) 
     prior = {}
     for f in fs:
-        prior[str(f)] = 1/N_particles # We consider a flat prior up to f_max.
+        prior[f] = 1/N_particles # We consider a flat prior up to f_max.
     
-    runs=10
-    steps = 30
+    runs=1
+    steps = 100
     adapt_runs, off_runs = [], []
     adapt_errors, off_errors = [], []
     adapt_mses, off_mses = [], []

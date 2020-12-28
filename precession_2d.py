@@ -188,6 +188,8 @@ def bayes_update(distribution, t, outcome, threshold=N_particles/2):
             resample(particle,distribution,
                      resampled_distribution)
         distribution = resampled_distribution
+        
+    return distribution
 
 def SMCparameters(distribution, stdev=True):
     '''
@@ -279,7 +281,7 @@ def offline_estimation(distribution, f_max, steps, increment=0.08):
         m = measure(t)
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        bayes_update(distribution,t,m) 
+        distribution = bayes_update(distribution,t,m) 
         
         current_mean, current_stdev = SMCparameters(distribution)
         means.append(current_mean)
@@ -325,8 +327,8 @@ def expected_utility(distribution, t, scale):
     dist_1 = distribution.copy()
     
     # Update the distribution assuming each of the possible outcomes.
-    bayes_update(dist_0,t,0) 
-    bayes_update(dist_1,t,1)
+    dist_0 = bayes_update(dist_0,t,0) 
+    dist_1 = bayes_update(dist_1,t,1)
     
     # Compute the expected utility for each oucome.
     stdevs_0 = SMCparameters(dist_0)[1]
@@ -377,9 +379,8 @@ def adaptive_guess(distribution, k, scale, guesses):
                                       weights=distribution.values(), k=2)
             p1, p2 = np.frombuffer(k1,dtype='float64'),\
                 np.frombuffer(k2,dtype='float64')
-            delta = np.sum([(scale[i]*(p1[i]-p2[i]))**2 
-                            for i in range(dim)])**0.5
-        time = k/delta**0.5
+            delta = np.sum([(scale[i]*(p1[i]-p2[i]))**2 for i in range(dim)])
+        time = k/delta
         if (guesses==1):
             return(time)
         adaptive_ts.append(time)
@@ -389,7 +390,7 @@ def adaptive_guess(distribution, k, scale, guesses):
     return(adaptive_ts[np.argmax(utilities)])
     
 first_adaptive_estimation = True
-def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2.5,
+def adaptive_estimation(distribution, steps, scale=[1.,100.], k=1.25,
                         guesses=1, precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
@@ -442,14 +443,19 @@ def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2.5,
     stdevs.append(current_stdevs) 
     cumulative_times.append(0)
     
-    adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+    if (guesses==1):
+        adaptive_t = k/np.sum([scale[i]*(current_stdevs[i])**2 \
+                                for i in range(dim)])
+    else:
+        adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+        
     cumulative_times.append(adaptive_t)
 
     for i in range(1,steps+1):
         m = measure(adaptive_t)
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        bayes_update(distribution,adaptive_t,m)
+        distribution = bayes_update(distribution,adaptive_t,m)
         
         current_means, current_stdevs = SMCparameters(distribution)
         means.append(current_means)
@@ -464,7 +470,12 @@ def adaptive_estimation(distribution, steps, scale=[1.,100.], k=2.5,
                 cumulative_times.append(cumulative_times[i-1])
             break
             
-        adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+        if (guesses==1):
+            adaptive_t = k/np.sum([scale[i]*(current_stdevs[i])**2 \
+                                    for i in range(dim)])
+        else:
+            adaptive_t = adaptive_guess(distribution,k,scale,guesses)
+        
         cumulative_times.append(adaptive_t+cumulative_times[i-1])      
     return means, stdevs, cumulative_times
 

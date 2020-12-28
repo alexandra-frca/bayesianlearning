@@ -70,7 +70,7 @@ def simulate(test_f, t):
     return p 
 
 def resample(f_particle, distribution, resampled_distribution, 
-             a=0.85):
+             a=0.98):
     '''
     Resamples a particle from a given amount of times and adds the results to 
     a previous distribution. Uniform weights are attributed to the resampled 
@@ -90,19 +90,21 @@ def resample(f_particle, distribution, resampled_distribution,
         When returning, it will have been updated with the freshly resampled 
         particle(s).
     a: float, optional
-        The Liu-West filtering parameter (Default is 0.8).
+        The Liu-West filtering parameter (Default is 0.98).
     '''
     current_SMCmean, current_stdev = SMCparameters(distribution)
-    # Sample a positive frequency particle.
-    new_particle=-1
-    while (new_particle<=0):
-        new_particle = np.random.normal(a*f_particle+(1-a)*current_SMCmean,
-                                      scale=(1-a**2)**0.5*current_stdev)
+    # Sample a frequency particle.
+    new_particle=None
+    while new_particle is None:
+        mean = a*f_particle+(1-a)*current_SMCmean
+        stdev = (1-a**2)**0.5*current_stdev
+        new_particle = np.random.normal(mean,scale=stdev)
         # Avoid repeated particles for variety.
         if new_particle in resampled_distribution:
-            new_particle = -1 
+            new_particle = None
     # Attribute uniform weights to the resampled particles.
-    resampled_distribution[str(new_particle)] = 1/N_particles
+    resampled_distribution[new_particle] = 1/N_particles
+    #smooth_and_plot(cumulative_distribution_function(resampled_distribution))
 
 def bayes_update(distribution, t, outcome, threshold=N_particles/2):
     '''
@@ -131,7 +133,7 @@ def bayes_update(distribution, t, outcome, threshold=N_particles/2):
     
     # Calculate the weights.
     for particle in distribution:
-        p1 = simulate(float(particle),t)
+        p1 = simulate(particle,t)
         if (outcome==1):
             w = p1*distribution[particle]
         if (outcome==0):
@@ -148,14 +150,20 @@ def bayes_update(distribution, t, outcome, threshold=N_particles/2):
        
     # Check whether the resampling condition applies, and resample if so.
     if (1/acc_squared_weight <= threshold):
+        #print("dist",distribution)
+        #print("mean,stdev",SMCparameters(distribution))
         resampled_distribution = {}
+        #print(SMCparameters(distribution))
         for i in range(N_particles):
             particle = random.choices(list(distribution.keys()), 
                                   weights=distribution.values())[0]
-            resample(float(particle),distribution,
+            resample(particle,distribution,
                      resampled_distribution)
         distribution = resampled_distribution
-
+        #print("res", distribution)
+        #smooth_and_plot(cumulative_distribution_function(distribution))
+        
+    return(distribution)
 
 def SMCparameters(distribution, stdev=True):
     '''
@@ -182,7 +190,7 @@ def SMCparameters(distribution, stdev=True):
     mean = 0
     meansquare = 0
     for particle in distribution:
-        f = float(particle)
+        f = particle
         w = distribution[particle]
         mean += f*w
         meansquare += f**2*w
@@ -234,14 +242,14 @@ def offline_estimation(distribution, f_max, steps, increment=0.08):
         m = measure(t)
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        bayes_update(distribution,t,m) 
+        distribution = bayes_update(distribution,t,m) 
+        #smooth_and_plot(cumulative_distribution_function(distribution))
         
         mean,stdev = SMCparameters(distribution)
         means.append(mean)
         stdevs.append(stdev) 
         
     cumulative_times = np.cumsum([i/(2*f_max) for i in range(steps+1)])
-        
     return means, stdevs, cumulative_times
     
 def expected_utility(distribution, time):
@@ -268,15 +276,15 @@ def expected_utility(distribution, time):
     # Obtain the probability of each oucome, given the current distribution.
     p1=0
     for particle in distribution:
-        p1 += simulate(float(particle),time)*distribution[particle]
+        p1 += simulate(particle,time)*distribution[particle]
     p0 = 1-p1
         
     dist_0 = distribution.copy()
     dist_1 = distribution.copy()
     
     # Update the distribution assuming each of the possible outcomes.
-    bayes_update(dist_0,time,0) 
-    bayes_update(dist_1,time,1)
+    dist_0 = bayes_update(dist_0,time,0) 
+    dist_1 = bayes_update(dist_1,time,1)
     
     # Compute the expected utility for each oucome.
     stdevs_0 = SMCparameters(dist_0)[1]
@@ -289,7 +297,7 @@ def expected_utility(distribution, time):
     
     return(utility)
 
-def adaptive_guess(distribution, k, guesses=1):
+def adaptive_guess(distribution, k, guesses):
     '''
     Provides a guess for the evolution time to be used for a measurement,
     picked using the PGH, a particle guess heuristic (where the times are 
@@ -320,8 +328,8 @@ def adaptive_guess(distribution, k, guesses=1):
         while (delta==0):
             [f1, f2] = random.choices(list(distribution.keys()), 
                                       weights=distribution.values(), k=2)
-            delta = abs(float(f1)-float(f2))
-        time = k/delta**0.5
+            delta = abs(f1-f2)
+        time = k/delta
         if (guesses==1):
             return(time)
         adaptive_ts.append(time)
@@ -329,7 +337,7 @@ def adaptive_guess(distribution, k, guesses=1):
         utilities.append(expected_utility(distribution,t))
     return(adaptive_ts[np.argmax(utilities)])
 
-def adaptive_estimation(distribution, steps, precision=0, k=0.7):
+def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
     '''
     Estimates the precession frequency by adaptively performing a set of 
     experiments, using the outcome of each to update the prior distribution 
@@ -348,7 +356,7 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
         attaining the step number limit (Default is 0).
     k: float
         The proportionality constant to be used for the particle guess 
-        heuristic (Default is 0.7).
+        heuristic (Default is 1.25).
         
     Returns
     -------
@@ -368,15 +376,19 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
     means.append(mean)
     stdevs.append(stdev)
     cumulative_times.append(0)
-
-    adaptive_t = adaptive_guess(distribution,k)
+    
+    if (guesses==1):
+        adaptive_t = k/stdev
+    else:
+        adaptive_t = adaptive_guess(distribution,k,guesses)
+        
     cumulative_times.append(adaptive_t)
         
     for i in range(1,steps+1):
         m = measure(adaptive_t)
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        bayes_update(distribution,adaptive_t,m)
+        distribution = bayes_update(distribution,adaptive_t,m)
         
         mean,stdev = SMCparameters(distribution)
         means.append(mean)
@@ -390,7 +402,11 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
                 cumulative_times.append(cumulative_times[i-1])
             break
             
-        adaptive_t = adaptive_guess(distribution,k)
+        if (guesses==1):
+            adaptive_t = k/stdev
+        else:
+            adaptive_t = adaptive_guess(distribution,k, guesses)
+            
         cumulative_times.append(adaptive_t+cumulative_times[i-1])
             
     return means, stdevs, cumulative_times
@@ -398,13 +414,14 @@ def adaptive_estimation(distribution, steps, precision=0, k=0.7):
 def main():
     global f_real, alpha_real, N_particles
     f_max = 10
-    fs = np.arange(f_max/N_particles,f_max,f_max/N_particles) 
+    fs = np.arange(f_max/N_particles,f_max+f_max/N_particles,
+                   2*f_max/N_particles) 
     prior = {}
     for f in fs:
-        prior[str(f)] = 1/N_particles # We consider a flat prior up to f_max.
+        prior[f] = 1/N_particles # We consider a flat prior up to f_max.
     
-    runs=10
-    steps = 30
+    runs=1
+    steps = 100
     adapt_runs, off_runs = [], []
     adapt_errors, off_errors = [], []
     adapt_mses, off_mses = [], []
