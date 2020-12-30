@@ -621,7 +621,7 @@ def adaptive_guess(distribution, k, scale, guesses):
     guesses: int, optional
         The amount of hypothesis to be picked for the time using the PGH; only 
         the one which maximizes the expected utility among this set will be  
-        chosen (Default is 1).
+        chosen.
         
     Returns
     -------
@@ -669,12 +669,20 @@ def adaptive_estimation(distribution, steps, scale=[1.,100.], k=1.25,
         A list of factors defining the relative scale between the parameters,
         by the same order they are listed in the arrays representing particles
         (Default is [1.,100.]).
+    k: float, optional
+        The proportionality constant to be used for the particle guess 
+        heuristic (Default is 1.25).
+    guesses: int, optional
+        The amount of hypothesis to be picked for the time; only the one which      
+        maximizes the expected utility among this set will be chosen (Default 
+        is 1).
+        If this quantity is greater than one, the times will be chosen to be 
+        inversely proportional to the distance between two particles picked at
+        random from the current distribution (instead of to its standard 
+        deviation), in order to introduce variability.
     precision: float, optional
         The threshold precision required to stop the learning process before  
         attaining the step number limit (Default is 0).
-    k: float, optional
-        The proportionality constant to be used for the particle guess 
-        heuristic (Default is 2.5).
         
     Returns
     -------

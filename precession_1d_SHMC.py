@@ -553,7 +553,7 @@ def adaptive_guess(distribution, k, guesses):
     guesses: int
         The amount of hypothesis to be picked for the time using the PGH; only 
         the one which maximizes the expected utility among this set will be  
-        chosen (Default is 1).
+        chosen.
         
     Returns
     -------
@@ -575,7 +575,7 @@ def adaptive_guess(distribution, k, guesses):
         utilities.append(expected_utility(distribution,t))
     return(adaptive_ts[np.argmax(utilities)])
 
-def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
+def adaptive_estimation(distribution, steps, k=1.25, guesses=1,precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
     experiments, using the outcome of each to update the prior distribution 
@@ -587,14 +587,23 @@ def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
     distribution: dict
         , with (key,value):=(frequency particle,importance weight)
         The prior distribution (SMC approximation).
-    steps: int, optional
+    steps: int
         The maximum number of experiments to be performed.
-    precision: float
-        The threshold precision required to stop the learning process before  
-        attaining the step number limit (Default is 0).
-    k: float
+    k: float, optional
         The proportionality constant to be used for the particle guess 
         heuristic (Default is 1.25).
+    guesses: int, optional
+        The amount of hypothesis to be picked for the time; only the one which      
+        maximizes the expected utility among this set will be chosen (Default 
+        is 1).
+        If this quantity is greater than one, the times will be chosen to be 
+        inversely proportional to the distance between two particles picked at
+        random from the current distribution (instead of to its standard 
+        deviation), in order to introduce variability.
+    precision: float, optional
+        The threshold precision required to stop the learning process before  
+        attaining the step number limit (Default is 0).
+        
         
     Returns
     -------

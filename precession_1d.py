@@ -12,7 +12,7 @@ distributions, along with Liu-West resampling.
 
 import sys, random, numpy as np, matplotlib.pyplot as plt
 
-N_particles = 1000 # Number of samples used to represent the probability
+N_particles = 100 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
 f_real = 0 # The actual precession frequency we mean to estimate.
@@ -70,7 +70,7 @@ def simulate(test_f, t):
     return p 
 
 def resample(f_particle, distribution, resampled_distribution, 
-             a=0.98):
+             a=0.98, left_constraint = 0, right_constraint=10):
     '''
     Resamples a particle from a given amount of times and adds the results to 
     a previous distribution. Uniform weights are attributed to the resampled 
@@ -91,11 +91,17 @@ def resample(f_particle, distribution, resampled_distribution,
         particle(s).
     a: float, optional
         The Liu-West filtering parameter (Default is 0.98).
+    left_constraint: float
+        The leftmost bounds to be enforced for the particle's motion.
+    right_constraint: float
+        The rightmost bounds to be enforced for the particle's motion.
     '''
     current_SMCmean, current_stdev = SMCparameters(distribution)
-    # Sample a frequency particle.
-    new_particle=None
-    while new_particle is None:
+    # Start with any invalid particle.
+    new_particle = left_constraint-1
+    
+    # Sample a valid frequency particle.
+    while (new_particle < left_constraint or new_particle > right_constraint):
         mean = a*f_particle+(1-a)*current_SMCmean
         stdev = (1-a**2)**0.5*current_stdev
         new_particle = np.random.normal(mean,scale=stdev)
@@ -104,7 +110,6 @@ def resample(f_particle, distribution, resampled_distribution,
             new_particle = None
     # Attribute uniform weights to the resampled particles.
     resampled_distribution[new_particle] = 1/N_particles
-    #smooth_and_plot(cumulative_distribution_function(resampled_distribution))
 
 def bayes_update(distribution, t, outcome, threshold=N_particles/2):
     '''
@@ -315,7 +320,7 @@ def adaptive_guess(distribution, k, guesses):
     guesses: int
         The amount of hypothesis to be picked for the time using the PGH; only 
         the one which maximizes the expected utility among this set will be  
-        chosen (Default is 1).
+        chosen.
         
     Returns
     -------
@@ -337,7 +342,7 @@ def adaptive_guess(distribution, k, guesses):
         utilities.append(expected_utility(distribution,t))
     return(adaptive_ts[np.argmax(utilities)])
 
-def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
+def adaptive_estimation(distribution, steps, k=1.25, guesses=1, precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
     experiments, using the outcome of each to update the prior distribution 
@@ -349,12 +354,20 @@ def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
     distribution: dict
         , with (key,value):=(frequency particle,importance weight)
         The prior distribution (SMC approximation).
-    steps: int, optional
+    steps: int
         The maximum number of experiments to be performed.
-    precision: float
+    precision: float,optional
         The threshold precision required to stop the learning process before  
         attaining the step number limit (Default is 0).
-    k: float
+    guesses: int, optional
+        The amount of hypothesis to be picked for the time; only the one which      
+        maximizes the expected utility among this set will be chosen (Default 
+        is 1).
+        If this quantity is greater than one, the times will be chosen to be 
+        inversely proportional to the distance between two particles picked at
+        random from the current distribution (instead of to its standard 
+        deviation), in order to introduce variability.
+    k: float, optional
         The proportionality constant to be used for the particle guess 
         heuristic (Default is 1.25).
         

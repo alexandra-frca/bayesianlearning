@@ -75,7 +75,7 @@ def simulate(particle, t):
     return p 
 
 def resample(particle, distribution, resampled_distribution, 
-             a=0.85, left_constraints = [0,0], right_constraints=[10,0.1]):
+             a=0.98, left_constraints = [0,0], right_constraints=[10,0.1]):
     '''
     Resamples a particle from a given amount of times and adds the results to 
     a previous distribution. Uniform weights are attributed to the resampled 
@@ -100,7 +100,7 @@ def resample(particle, distribution, resampled_distribution,
         When returning, it will have been updated with the freshly resampled 
         particle(s).
     a: float, optional
-        The Liu-West filtering parameter (Default is 0.85).
+        The Liu-West filtering parameter (Default is 0.98).
     left_constraints: [float]
         The leftmost bounds to be enforced for the particle's motion.
     right_constraints: [float]
@@ -360,10 +360,10 @@ def adaptive_guess(distribution, k, scale, guesses):
     scale: [float], optional
         A list of factors defining the relative scale between the parameters,
         by the same order they are listed in the arrays representing particles.
-    guesses: int, optional
+    guesses: int
         The amount of hypothesis to be picked for the time using the PGH; only 
         the one which maximizes the expected utility among this set will be  
-        chosen (Default is 1).
+        chosen.
         
     Returns
     -------
@@ -410,12 +410,21 @@ def adaptive_estimation(distribution, steps, scale=[1.,100.], k=1.25,
         A list of factors defining the relative scale between the parameters,
         by the same order they are listed in the arrays representing particles
         (Default is [1.,100.]).
+    guesses: int, optional
+        The amount of hypothesis to be picked for the time; only the one which      
+        maximizes the expected utility among this set will be chosen (Default 
+        is 1).
+        If this quantity is greater than one, the times will be chosen to be 
+        inversely proportional to the distance between two particles picked at
+        random from the current distribution (instead of to its standard 
+        deviation), in order to introduce variability.
+    k: float, optional
+        The proportionality constant to be used for the particle guess 
+        heuristic (Default is 1.25).
+        
     precision: float, optional
         The threshold precision required to stop the learning process before  
         attaining the step number limit (Default is 0).
-    k: float, optional
-        The proportionality constant to be used for the particle guess 
-        heuristic (Default is 2.5).
         
     Returns
     -------
