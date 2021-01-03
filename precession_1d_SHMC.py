@@ -52,13 +52,11 @@ def measure(t, alpha=alpha_real, tries=1):
         return 1
     return 0
 
-def simulate(test_f, t):
+def simulate_1(test_f, t):
     '''
     Provides an estimate for the likelihood  P(D=1|test_f,t) of an x-spin 
     measurement at time t yielding result |+>, given a test parameter for the 
     fixed form Hamiltonian. 
-    This estimate is computed as the fraction of times a simulated system
-    evolution up to time t yields said result upon measurement.
     
     Parameters
     ----------
@@ -69,19 +67,48 @@ def simulate(test_f, t):
         
     Returns
     -------
-    p: float
+    p1: float
         The estimated probability of finding the particle at state |+>.
     '''
-    p=np.cos(test_f*t/2)**2
+    p1 = np.cos(test_f*t/2)**2
+    return p1
+
+def likelihood(outcome, test_f, t):
+    '''
+    Provides an estimate for the likelihood  P(D|test_f,t) of an x-spin 
+    measurement at time t yielding a given result, given a test parameter for  
+    the fixed form Hamiltonian. 
+    
+    Parameters
+    ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
+    test_f: float
+        The test precession frequency.
+    t: float
+        The evolution time between the initialization and the projection.
+        
+    Returns
+    -------
+    p: float
+        The estimated probability of obtaining the input outcome. 
+    '''
+    p1 = simulate_1(test_f,t)
+    if outcome==1:
+        p = p1
+    if outcome==0:
+        p = 1-p1
     return p 
 
-def target_U(test_f,t):
+def target_U(outcome, test_f,t):
     '''
     Evaluates the target "energy" associated to the likelihood at a time t seen
     as a probability density, given a parameter for the fixed form Hamiltonian. 
     
     Parameters
     ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     particle: float
         The frequency to be used for the likelihood.
     t: float
@@ -92,12 +119,11 @@ def target_U(test_f,t):
     U: float
         The value of the "energy".
     '''
-    likelihood = np.cos(test_f*t/2)**2
-    U = -np.log(likelihood)
-    
+    l = likelihood(outcome, test_f, t)
+    U = -np.log(l)
     return(U)
 
-def U_gradient(test_f,t,autograd=False):
+def U_gradient(outcome,test_f,t,autograd=False):
     '''
     Evaluates the derivative of the target "energy" associated to the likelihood 
     at a time t seen as a probability density, given a frequency for the fixed 
@@ -105,6 +131,8 @@ def U_gradient(test_f,t,autograd=False):
     
     Parameters
     ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     test_f: float
         The frequency to be used for the likelihood.
     t: float
@@ -118,10 +146,14 @@ def U_gradient(test_f,t,autograd=False):
         The derivative of the "energy".
     '''
     if autograd: 
-        DU_f = grad(target_U)
-        DU = DU_f(test_f,t)
+        DU_f = grad(target_U,1)
+        DU = DU_f(outcome,test_f,t)
     else:
-        DU=np.sin(test_f*t)*t/np.cos(test_f*t/2)
+        if outcome==1:
+            DU=t*np.sin(test_f*t/2)/np.cos(test_f*t/2)
+        if outcome==0:
+            DU=-t*np.sin(test_f*t/2)*np.cos(test_f*t/2)/(1-
+                                                         np.cos(test_f*t/2)**2)
     return(DU)
 
 def gaussian(x, mu, sigma, normalize=False):
@@ -155,7 +187,7 @@ def gaussian(x, mu, sigma, normalize=False):
         return e
 
 first_metropolis_hastings_step = True
-def metropolis_hastings_step(t, particle, s=1, factor=0.05,
+def metropolis_hastings_step(outcome, t, particle, s=1, factor=1,
                              left_constraint = 0,right_constraint=10): 
     '''
     Performs a Metropolis-Hastings mutation on a given particle, using a 
@@ -163,6 +195,8 @@ def metropolis_hastings_step(t, particle, s=1, factor=0.05,
     
     Parameters
     ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     t: float
         The time at which the current iteration's measurement was performed.
         This is relevant because the target function and its derivative are 
@@ -208,11 +242,12 @@ def metropolis_hastings_step(t, particle, s=1, factor=0.05,
         new_particle = np.random.normal(particle, sigma)
         
     # Compute the probabilities of transition for the acceptance probability.
-    p = simulate(t,new_particle)*gaussian(particle,new_particle,sigma)/ \
-        (simulate(t,particle)*gaussian(new_particle,particle,sigma))
+    p = likelihood(outcome,t,new_particle)*gaussian(particle,new_particle,
+                                                    sigma)/ \
+        (likelihood(outcome,t,particle)*gaussian(new_particle,particle,sigma))
     return new_particle,p
 
-def simulate_dynamics(t, initial_momentum, initial_particle, m, L, eta,
+def simulate_dynamics(outcome,t, initial_momentum, initial_particle, m, L, eta,
                       left_constraint = 0, right_constraint=10):    
     '''
     Simulates Hamiltonian dynamics for a given particle, using leapfrog 
@@ -220,6 +255,8 @@ def simulate_dynamics(t, initial_momentum, initial_particle, m, L, eta,
     
     Parameters
     ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     t: float
         The time at which the current iteration's measurement was performed.
         This is relevant because the target function and its derivative are 
@@ -251,7 +288,7 @@ def simulate_dynamics(t, initial_momentum, initial_particle, m, L, eta,
         Monte Carlo proposal.
     '''    
     new_particle = initial_particle
-    DU = U_gradient(new_particle,t)
+    DU = U_gradient(outcome,new_particle,t)
     global f_real
     
     # Perform leapfrog integration according to Hamilton's equations.
@@ -271,12 +308,13 @@ def simulate_dynamics(t, initial_momentum, initial_particle, m, L, eta,
             new_particle = right_constraint-(new_particle-right_constraint)
             new_momentum = -new_momentum
         if (l != L-1):
-            DU = U_gradient(new_particle,t)
+            DU = U_gradient(outcome,new_particle,t)
             new_particle = new_particle - eta*DU
     new_momentum = new_momentum - 0.5*eta*DU
 
-    p = np.exp(target_U(initial_particle,t)-target_U(new_particle,t)+
-            initial_momentum**2/(2*m)-new_momentum**2/(2*m))
+    p = np.exp(target_U(outcome,initial_particle,t)-\
+               target_U(outcome,new_particle,t)+\
+                   initial_momentum**2/(2*m)-new_momentum**2/(2*m))
     
     '''
     if (p<0.1):
@@ -286,12 +324,15 @@ def simulate_dynamics(t, initial_momentum, initial_particle, m, L, eta,
     return new_particle, p
         
 first = True
-def hamiltonian_MC_step(t, point, m=1, L=20, eta=10**-5, threshold=0.1):
+def hamiltonian_MC_step(outcome, t, point, m=1, L=20, eta=10**-6, 
+                        threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
     
     Parameters
     ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     t: float
         The time at which the current iteration's measurement was performed.
         This is relevant because the target function and its derivative are 
@@ -330,7 +371,8 @@ def hamiltonian_MC_step(t, point, m=1, L=20, eta=10**-5, threshold=0.1):
             
         global total_HMC, accepted_HMC, total_MH, accepted_MH
         initial_momentum = np.random.normal(0, scale=m)
-        new_point, p = simulate_dynamics(t,initial_momentum,point,m,L,eta)
+        new_point, p = simulate_dynamics(outcome,t,initial_momentum,point,
+                                         m,L,eta)
     else:
         p = 0
         
@@ -341,7 +383,7 @@ def hamiltonian_MC_step(t, point, m=1, L=20, eta=10**-5, threshold=0.1):
     #controls.
     if (p < threshold):
         MH = True
-        new_point, p = metropolis_hastings_step(t,point,s=1/m)
+        new_point, p = metropolis_hastings_step(outcome,t,point,s=1/m)
         total_MH += 1
     else:
         MH = False
@@ -357,13 +399,15 @@ def hamiltonian_MC_step(t, point, m=1, L=20, eta=10**-5, threshold=0.1):
     else:
         return(point)
 
-def bayes_update(distribution, t, outcome):
+def bayes_update(outcome, distribution, t):
     '''
     Updates a prior distribution according to the outcome of a measurement, 
     using Bayes' rule. 
     
     Parameters
     ----------
+    outcome: int
+        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     distribution: dict
         , with (key,value):=(frequency particle,importance weight)
         The prior distribution (SMC approximation). When returning, it will 
@@ -372,18 +416,13 @@ def bayes_update(distribution, t, outcome):
     t: float
         The time at which the measurement was performed, which characterizes 
         it. The reference (t=0) is taken as the time of initialization.
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
     '''
     global N_particles
     
     # Update the weights.
     for particle in distribution:
-        p1 = simulate(particle,t)
-        if (outcome==1):
-            distribution[particle] = p1
-        if (outcome==0):
-            distribution[particle] = 1-p1
+        distribution[particle] = likelihood(outcome,particle,t)
+        
     selected_particles = random.choices(list(distribution.keys()), 
                                           weights=distribution.values(),
                                           k=N_particles)
@@ -397,7 +436,7 @@ def bayes_update(distribution, t, outcome):
     for particle in selected_particles:
         repeated = True
         while (repeated == True):
-            mutated_particle = hamiltonian_MC_step(t,particle
+            mutated_particle = hamiltonian_MC_step(outcome,t,particle
                                                    ,m=1/cov)
             if (mutated_particle not in distribution):
                 repeated = False
@@ -478,10 +517,10 @@ def offline_estimation(distribution, f_max, steps, increment=0.08):
     
     ts = np.arange(1, steps+1)*increment
     for t in ts:
-        m = measure(t)
+        outcome = measure(t)
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        bayes_update(distribution,t,m) 
+        bayes_update(outcome,distribution,t) 
         
         mean,stdev = SMCparameters(distribution)
         means.append(mean)
@@ -514,15 +553,15 @@ def expected_utility(distribution, time):
     # Obtain the probability of each oucome, given the current distribution.
     p1=0
     for particle in distribution:
-        p1 += simulate(particle,time)*distribution[particle]
+        p1 += likelihood(1,particle,time)
     p0 = 1-p1
         
     dist_0 = distribution.copy()
     dist_1 = distribution.copy()
     
     # Update the distribution assuming each of the possible outcomes.
-    bayes_update(dist_0,time,0) 
-    bayes_update(dist_1,time,1)
+    bayes_update(0,dist_0,time) 
+    bayes_update(1,dist_1,time)
     
     # Compute the expected utility for each oucome.
     stdevs_0 = SMCparameters(dist_0)[1]
@@ -632,10 +671,10 @@ def adaptive_estimation(distribution, steps, k=1.25, guesses=1,precision=0):
     cumulative_times.append(adaptive_t)
         
     for i in range(1,steps+1):
-        m = measure(adaptive_t)
+        outcome = measure(adaptive_t)
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        bayes_update(distribution,adaptive_t,m)
+        bayes_update(outcome,distribution,adaptive_t)
         
         mean,stdev = SMCparameters(distribution)
         means.append(mean)
@@ -668,7 +707,7 @@ def main():
         prior[f] = 1/N_particles # We consider a flat prior up to f_max.
     
     runs=1
-    steps = 100
+    steps = 30
     adapt_runs, off_runs = [], []
     adapt_errors, off_errors = [], []
     adapt_mses, off_mses = [], []
