@@ -6,4 +6,4 @@ The most recently modified files are `precession_2d.py` and `precession_2d_SHMC.
 
 These 4 scripts repeat the algorithm for a number of runs with randomly picked real values, and medians are taken over all of them to get the results. The evolution of the median standard deviations with the iterations is plotted.
 
-The folder **Single Runs** contains some scripts for generating graphs respecting single runs; namely, final cumulative distribution functions for bimodal distributions (i.e. the prior is changed to be an even function, with support over negative frequencies) and error bar plots for some real frequency of choice.
+The folder **Single Runs** contains some scripts for generating graphs respecting single runs of the 1d version; namely, final cumulative distribution functions for bimodal distributions (i.e. the prior is changed to be an even function, with support over negative frequencies) and error bar plots for some real frequency of choice.
