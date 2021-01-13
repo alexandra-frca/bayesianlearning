@@ -5,4 +5,4 @@ The **Phase estimation** folder contains implementations for estimating a phase 
 
 The **Precession frequency estimation** folder contains implementations for estimating a precession frequency (plus a decay factor in some cases) using 3 different approaches: SMC (with sequential importance resampling), HSMC (relying mostly on Hamiltonian Monte Carlo mutation steps) and MCMC (using Hamiltonian Monte Carlo and Metropolis-Hastings transitions).
 
-The **Sampling methods** folder contains implementations of several Monte Carlo sampling algorithms for a 3 target probability densities (a Rosenbrock function, a 6-dimensional gaussian, and a smiley face kernel density estimate).
+The **Sampling methods** folder contains implementations of several Monte Carlo sampling algorithms for 3 target probability densities (a Rosenbrock function, a 6-dimensional gaussian, and a smiley face kernel density estimate).
