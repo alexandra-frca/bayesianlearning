@@ -6,8 +6,14 @@ offline and adaptive Bayesian inference.
 The qubit is assumed to be initialized at state |+> for each iteration, and to
 evolve under H = f*sigma_z/2, where f is the parameter to be estimated.
 
+The prior is chosen to have support over negative frequencies, covering the two
+modes of the expected frequency distribution (at +f and -f for f!=0).
+
 A sequential Monte Carlo approximation is used to represent the probability 
 distributions, using Hamiltonian Monte Carlo mutation steps.
+
+The final cumulative distribution function is plotted, along with vertical lines 
+marking the two symmetric real frequencies.
 """
 
 import sys, random, matplotlib.pyplot as plt
@@ -689,25 +695,43 @@ def adaptive_estimation(distribution, steps, precision=0, k=1.25, guesses=1):
     return means, stdevs, cumulative_times, distribution
 
 def cumulative_distribution_function(distribution):
+    '''
+    Computes the cumulative distribution function for a given distribution.
+    
+    Parameters
+    ----------
+    distribution: dict
+        , with (key,value):=(frequency particle,importance weight)
+        The prior distribution (SMC approximation).
+        
+    Returns
+    -------
+    points: [(float,float)]
+        A list of (frequency particle, cumulative probability) tuples assigning 
+        to each particle in the input distribution (by order of increasing 
+        frequency) the probability of the frequency being equal to or below its 
+        own, according to the input distribution.
+    '''
     sorted_particles = sorted([key for key in list(distribution.keys())])
     cumulative_sum = 0
     points=[]
     for particle in sorted_particles:
-        cumulative_sum += 1/N_particles # The particles have uniform weights after 
-        #each iteration
+        cumulative_sum += 1/N_particles # The particles have uniform weights  
+        #after each iteration
         points.append((particle,cumulative_sum))
     return points
 
-def smooth_and_plot(points,smoothen=False, x_steps=100, 
-                    vertical_lines=[]):
-    x,y = [[point[i] for point in points] for i in range(2)]
+def plot_tuples(points, vertical_lines=[]):
+    '''
+    Plots the curve corresponding to a list of 2 element tuples, and 
+    (optionally) dashed vertical lines for a specified set of x-coordinates.
     
-    if smoothen:
-        spline = make_interp_spline(x, y)
-        finer_x = np.linspace(x[0], x[len(x)-1], x_steps)  # x is assumed to be 
-        #sorted.
-        smoothed_y= spline(finer_x)
-        x,y = finer_x,smoothed_y
+    Parameters
+    ----------
+    points: [(float,float)]
+        A list of tuples, sorted by the first elements.
+    '''
+    x,y = [[point[i] for point in points] for i in range(2)]
 
     fig, axs = plt.subplots(1,figsize=(12,8))
     axs.plot(x,y)
@@ -731,12 +755,12 @@ def main():
     '''
     final_off_distribution =  offline_estimation(prior.copy(),f_max,steps)[3]
     off_cdf = cumulative_distribution_function(final_off_distribution)
-    smooth_and_plot(off_cdf,vertical_lines=[f_real,-f_real])
+    plot_tuples(off_cdf,vertical_lines=[f_real,-f_real])
     print("Offline")
     '''
     final_adaptive_distribution =  adaptive_estimation(prior.copy(),steps)[3]
     adapt_cdf = cumulative_distribution_function(final_adaptive_distribution)
-    smooth_and_plot(adapt_cdf,vertical_lines=[f_real,-f_real])
+    plot_tuples(adapt_cdf,vertical_lines=[f_real,-f_real])
     print("Adaptive")
 
     print("n=%d; N=%d; f_max=%d; alpha=%.2f; 1d, SHMC" 
