@@ -92,12 +92,12 @@ def likelihood(data, test_f):
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
+    data: [(float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     test_f: float
         The test precession frequency.
-    t: float
-        The evolution time between the initialization and the projection.
         
     Returns
     -------
@@ -120,12 +120,12 @@ def loglikelihood(data, test_f):
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
+    data: [(float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     test_f: float
         The test precession frequency.
-    t: float
-        The evolution time between the initialization and the projection.
         
     Returns
     -------
@@ -143,12 +143,12 @@ def U_gradient(data,test_f,autograd=False):
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
+    data: [(float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     test_f: float
         The frequency to be used for the likelihood.
-    t: float
-        The evolution time between the initialization and the projection.
     autograd: bool, optional
         Whether to use automatic differenciation (Default is False).
         
@@ -218,21 +218,15 @@ def metropolis_hastings_step(data, particle, sigma=0.05,
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    t: float
-        The time at which the current iteration's measurement was performed.
-        This is relevant because the target function and its derivative are 
-        time-dependent.
+    data: [(float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     particle: float
         The particle to undergo a mutation step.
-    s: float, optional
-        The standard deviation to be multiplied by a factor and then used as 
-        standard deviation for the normal distribution used for the proposal 
-        (Default is 1).
-    factor: float, optional
-        The factor 's' should be be multiplied by to get the standard deviation
-        of the the normal distribution used for the proposal (Default is 0.05).
+    sigma: float, optional
+        The standard deviation to be used in the normal distribution to generate
+        proposals (Default is 0.01).
     left_constraint: float
         The leftmost bounds to be enforced for the particle's motion.
     right_constraint: float
@@ -273,12 +267,10 @@ def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta,
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    t: float
-        The time at which the current iteration's measurement was performed.
-        This is relevant because the target function and its derivative are 
-        time-dependent.
+    data: [(float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     initial_momentum: float
         The starting momentum vector. 
     initial_particle: float
@@ -337,6 +329,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta,
     return new_particle, p
         
 first = True
+
 # works well for m=0.1, L=20,eta=10**-3, threshold=0.01, measurements=100,
 #steps=100, increment=0.08
 def hamiltonian_MC_step(data, point, m=0.1, L=20, eta=5*10**-3,
@@ -346,12 +339,12 @@ def hamiltonian_MC_step(data, point, m=0.1, L=20, eta=5*10**-3,
     
     Parameters
     ----------
-    t: float
-        The time at which the current iteration's measurement was performed.
-        This is relevant because the target function and its derivative are 
-        time-dependent.
+    data: [(float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     particle: float
-        The frequency particle to undergo a mutation step.
+        The frequency particle to undergo a transition.
     m: float, optional
         The mass to be used when simulating the Hamiltonian dynamics (a HMC 
         tuning parameter) (Default is 1).
@@ -368,8 +361,10 @@ def hamiltonian_MC_step(data, point, m=0.1, L=20, eta=5*10**-3,
         
     Returns
     -------
-    particle: float
-        The mutated frequency particle.
+    point: float
+        The point after the suggested transition (i.e. a frequency parameter).
+    proposal: str
+        The mechanism used for the Markov transition ("HMC" or "MH").
     '''
     if (threshold<1):
         # Perform a Hamiltonian Monte Carlo mutation.
@@ -444,7 +439,7 @@ def offline_estimation(point, f_max, measurements, steps, increment=0.08):
         The increment between consecutive measurement times (Default is 0.08).
     '''    
     ts = np.arange(1, measurements+1)*increment
-    #ts = [(9/8)**k for k in range(measurements)]
+    #ts = [0.1*(9/8)**k for k in range(measurements)]
     data = [(t,measure(t)) for t in ts]
     
     trajectory, proposals = [point],["Starting point"]
@@ -458,6 +453,32 @@ def offline_estimation(point, f_max, measurements, steps, increment=0.08):
     return point
 
 def plot_likelihood(data, points=None, point_types=None,plot_gradient=False):
+    '''
+    Plots - on the interval [0,f_max[ - the likelihood function corresponding to 
+    the given data (which is the product of the individual likelihoods of each 
+    datum), as well as (optionally) the gradient of the log-likelihood and/or 
+    (also optionally) a set of points (as an overposed scatter plot).
+    If a list of labels indicating the methods used for the Markov transitions 
+    used to get each point is given, the points will be colored according to 
+    these labels.
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    points: [float], optional
+        A list of consecutive x-coordinates to be plotted. The y-coordinates
+        will be obtained by enumeration, so that the upward direction of the 
+        y-axis denotes evolution (Default is None).
+    point_types: [str], optional
+        A list giving the methods used for the Markov transitions, by the same 
+        order as in the list of points. These methods can be either "HMC" or 
+        "MH", and will be used to color and label the points (Default is None).
+    plot_gradient: bool, optional
+        Whether to plot the gradient (Default is False).
+    '''
     fig, axs = plt.subplots(1,figsize=(15,10))
     axs.set_title("MCMC using HMC and MH proposals",pad=20,fontsize=18)
     axs.set_ylabel("Likelihood",fontsize=14)
@@ -465,6 +486,7 @@ def plot_likelihood(data, points=None, point_types=None,plot_gradient=False):
     axs.tick_params(axis='y', colors="blue")
     axs.yaxis.label.set_color('blue')
     
+    global f_max
     xx = np.arange(0.1,f_max,0.1)
     yy = [likelihood(data,x) for x in xx]
     axs.plot(xx,yy,linewidth=1.75,alpha=0.5)
