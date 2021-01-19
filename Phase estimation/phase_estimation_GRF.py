@@ -13,21 +13,21 @@ phi_real = 0.5
 
 def measure(M, theta):
     '''
-    Simulates the measurement of the quantum system of the x component of spin 
-    at a given time t after initialization at state |+>.
+    Simulates a measurement on the phase estimation circuit; the probability 
+    of 0 is P(0|phi;theta,M)=(1+cos(M*(phi+theta)))/2 and that of 1 is its 
+    complement.
     
     Parameters
     ----------
-    t: float
-        The evolution time between the initialization and the projection.
-    alpha: int, optional
-        The exponential decay parameter (Default is 0).
-    tries: int, optional
-        The amount of times the measurement is repeated (Default is 1).
+    M: int
+        The number of times the operator whose eigenvalue is to be determined is 
+        applied (also used as a parameter for the rotation).
+    theta: float
+        A parameter for the rotation gate to be used in the circuit.
         
     Returns
     -------
-    1 if the result is |+>, 0 if it is |->.
+    The obtained result (0 or 1).
     '''
     global phi_real
     r = random.random()
@@ -39,28 +39,47 @@ def measure(M, theta):
 
 def simulate_1(M, theta, phi):
     '''
-    Provides an estimate for the likelihood  P(D=1|test_f,t) of an x-spin 
-    measurement at time t yielding result |+>, given a test parameter for the 
-    fixed form Hamiltonian. 
-    This estimate is computed as the fraction of times a simulated system
-    evolution up to time t yields said result upon measurement.
+    Provides an estimate for the likelihood  P(D=1|phi;theta,M) of a measurement 
+    on the phase estimation circuit yielding result 1, given the experiment 
+    controls and a phase (the test parameter).
     
     Parameters
     ----------
-    test_f: float
-        The test precession frequency.
-    t: float
-        The evolution time between the initialization and the projection.
-        
+    M: int
+        The number of times the operator whose eigenvalue is to be determined is 
+        applied (also used as a parameter for the rotation).
+    theta: float
+        A parameter for the rotation gate to be used in the circuit.
+    phi: float
+        A phase (the test parameter).
+    
     Returns
     -------
     p: float
-        The estimated probability of finding the particle at state |1>.
+        The estimated probability of finding the particle at state 1.
     '''
     p=(1-np.cos(M*(phi+theta)))/2
     return p 
 
 def likelihood(data, test_phi):
+    '''
+    Provides an estimate for the likelihood  P(D|phi;theta,M) given a vector of 
+    data (experimental outcomes and controls) and a test parameter (a phase).
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    test_phi: float
+        A phase (the test parameter).
+        
+    Returns
+    -------
+    p: float
+        The estimated probability of obtaining the data given the parameter phi. 
+    '''
     if np.size(data)==3:
         M, theta, outcome = data
         p = simulate_1(M,theta,test_phi)*(outcome==1)+\
@@ -70,6 +89,15 @@ def likelihood(data, test_phi):
     return p 
 
 def adaptive_phase_estimation(measurements):
+    '''
+    Performs phase estimation, using the data from experiments for which the 
+    controls are chosen adaptively.
+    
+    Parameters
+    ----------
+    measurements: int
+        The total number of measurements to be performed.
+    '''
     global phi_real, N_samples
     M,theta = 1,random.random()*2*np.pi # Arbitrary first measurement.
     outcome = measure(M, theta)
@@ -120,7 +148,7 @@ def adaptive_phase_estimation(measurements):
                 We will need to compute the standard deviation and possibly
                 mean for the pi-shifted distribution, to diagnose close to 
                 0 mod 2pi frequencies that would be misrepresented by a 
-                gaussian on the interval [0,2pi[ due to being split at the
+                gaussian on the interval [0,2pi[ due to its being split at the
                 boundaries (with the right side to the right of 0 and the left
                 side to the left of 2pi), yielding a close to pi mean and a
                 larger than should be variance.
@@ -133,6 +161,7 @@ def adaptive_phase_estimation(measurements):
                 be computed at every step for screening purposes.
                 In alternative, a wrapped normal distribution (on the unit 
                 circle) could be used.
+                (Based on the article)
                 '''
                 shifted_phi = (test_phi+np.pi)%(2*np.pi)
                 shifted_sum += shifted_phi
@@ -157,6 +186,23 @@ def adaptive_phase_estimation(measurements):
     return(mean,stdev)
 
 def plot_likelihood(data, points=None):
+    '''
+    Plots - on the interval [0,2*pi[ - the likelihood function corresponding to 
+    the given data (which is the product of the individual likelihoods of each 
+    datum), as well as (optionally) a set of points (as an overposed scatter 
+    plot).
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    points: [float], optional
+        A list of consecutive x-coordinates to be plotted. The y-coordinates
+        will be obtained by enumeration, so that the upward direction of the 
+        y-axis denotes evolution (Default is None).
+    '''
     fig, axs = plt.subplots(1,figsize=(15,10))
     axs.set_title("Phase Estimation (gaussians)",pad=20,fontsize=18)
     axs.set_ylabel("Likelihood",fontsize=14)

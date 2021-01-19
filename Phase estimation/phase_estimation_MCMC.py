@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-
+Estimates a phase by using Markov Chain Monte Carlo (with Hamiltonian Monte  
+Carlo and Metropolis-Hastings transitions) to sample from a product of 
+likelihoods.
 """
 
 import random, matplotlib.pyplot as plt
@@ -15,21 +17,21 @@ total_MH, accepted_MH = 0, 0
 
 def measure(M, theta):
     '''
-    Simulates the measurement of the quantum system of the x component of spin 
-    at a given time t after initialization at state |+>.
+    Simulates a measurement on the phase estimation circuit; the probability 
+    of 0 is P(0|phi;theta,M)=(1+cos(M*(phi+theta)))/2 and that of 1 is its 
+    complement.
     
     Parameters
     ----------
-    t: float
-        The evolution time between the initialization and the projection.
-    alpha: int, optional
-        The exponential decay parameter (Default is 0).
-    tries: int, optional
-        The amount of times the measurement is repeated (Default is 1).
+    M: int
+        The number of times the operator whose eigenvalue is to be determined is 
+        applied (also used as a parameter for the rotation).
+    theta: float
+        A parameter for the rotation gate to be used in the circuit.
         
     Returns
     -------
-    1 if the result is |+>, 0 if it is |->.
+    The obtained result (0 or 1).
     '''
     global phi_real
     r = random.random()
@@ -41,28 +43,47 @@ def measure(M, theta):
 
 def simulate_1(M, theta, phi):
     '''
-    Provides an estimate for the likelihood  P(D=1|test_f,t) of an x-spin 
-    measurement at time t yielding result |+>, given a test parameter for the 
-    fixed form Hamiltonian. 
-    This estimate is computed as the fraction of times a simulated system
-    evolution up to time t yields said result upon measurement.
+    Provides an estimate for the likelihood  P(D=1|phi;theta,M) of a measurement 
+    on the phase estimation circuit yielding result 1, given the experiment 
+    controls and a phase (the test parameter).
     
     Parameters
     ----------
-    test_f: float
-        The test precession frequency.
-    t: float
-        The evolution time between the initialization and the projection.
-        
+    M: int
+        The number of times the operator whose eigenvalue is to be determined is 
+        applied (also used as a parameter for the rotation).
+    theta: float
+        A parameter for the rotation gate to be used in the circuit.
+    phi: float
+        A phase (the test parameter).
+    
     Returns
     -------
     p: float
-        The estimated probability of finding the particle at state |1>.
+        The estimated probability of finding the particle at state 1.
     '''
     p=(1-np.cos(M*(phi+theta)))/2
     return p 
 
 def likelihood(data, test_phi):
+    '''
+    Provides an estimate for the likelihood  P(D|phi;theta,M) given a vector of 
+    data (experimental outcomes and controls) and a test parameter (a phase).
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    test_phi: float
+        A phase (the test parameter).
+        
+    Returns
+    -------
+    p: float
+        The estimated probability of obtaining the data given the parameter phi. 
+    '''
     if np.size(data)==3:
         M, theta, outcome = data
         p = simulate_1(M,theta,test_phi)*(outcome==1)+\
@@ -74,23 +95,24 @@ def likelihood(data, test_phi):
 
 def loglikelihood(data, test_phi):
     '''
-    Provides an estimate for the likelihood  P(D|test_f,t) of an x-spin 
-    measurement at time t yielding a given result, given a test parameter for  
-    the fixed form Hamiltonian. 
+    Provides an estimate for the log-likelihood  log(P(D|phi;theta,M)) given a   
+    vector of data (experimental outcomes and controls) and a test parameter 
+    (a phase).
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    test_f: float
-        The test precession frequency.
-    t: float
-        The evolution time between the initialization and the projection.
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    test_phi: float
+        A phase (the test parameter).
         
     Returns
     -------
     p: float
-        The estimated probability of obtaining the input outcome. 
+        The logarithm of the estimated probability of obtaining the data given 
+        the parameter phi. 
     '''
     p = np.sum([np.log(likelihood(datum, test_phi)) for datum in data\
                 if likelihood(datum, test_phi)!=0])
@@ -135,21 +157,15 @@ def metropolis_hastings_step(data, particle, sigma=0.01):
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    t: float
-        The time at which the current iteration's measurement was performed.
-        This is relevant because the target function and its derivative are 
-        time-dependent.
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
     particle: float
         The particle to undergo a mutation step.
-    s: float, optional
-        The standard deviation to be multiplied by a factor and then used as 
-        standard deviation for the normal distribution used for the proposal 
-        (Default is 1).
-    factor: float, optional
-        The factor 's' should be be multiplied by to get the standard deviation
-        of the the normal distribution used for the proposal (Default is 0.05).
+    sigma: float, optional
+        The standard deviation to be used in the normal distribution to generate
+        proposals (Default is 0.01).
         
     Returns
     -------
@@ -183,12 +199,12 @@ def U_gradient(data,test_phi,autograd=False):
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    test_f: float
-        The frequency to be used for the likelihood.
-    t: float
-        The evolution time between the initialization and the projection.
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    test_phi: float
+        A phase (the test parameter).
     autograd: bool, optional
         Whether to use automatic differenciation (Default is False).
         
@@ -217,20 +233,17 @@ def U_gradient(data,test_phi,autograd=False):
                  for (M,theta,outcome) in usable_data])
     return(DU)
 
-def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta,
-                      factor=1):    
+def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta):    
     '''
     Simulates Hamiltonian dynamics for a given particle, using leapfrog 
     integration.
     
     Parameters
     ----------
-    outcome: int
-        The result of the measurement (with |+> mapped to 1, and |-> to 0).
-    t: float
-        The time at which the current iteration's measurement was performed.
-        This is relevant because the target function and its derivative are 
-        time-dependent.
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
     initial_momentum: float
         The starting momentum vector. 
     initial_particle: float
@@ -273,12 +286,11 @@ def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta,
     new_particle = new_particle%(2*np.pi)
     return new_particle, p
 
-# Seems to work decent for: point, m=0.5, L=10, eta=10**-3,
+# Seems to work well for: point, m=0.5, L=10, eta=10**-3,
 # or m=0.05, L=10, eta=5*10**-4
 # or m=0.05, L=20, eta=5*10**-3
 # ...
-# always with: threshold=0.01, sigma_MH=0.01 (or 0.1,...)
-# And different MH/HMC ratios
+# always with: threshold=0.01
 first = True
 def hamiltonian_MC_step(data, point, m=0.05, L=10, eta=5*10**-4,
                         threshold=0.01):
@@ -287,30 +299,32 @@ def hamiltonian_MC_step(data, point, m=0.05, L=10, eta=5*10**-4,
     
     Parameters
     ----------
-    t: float
-        The time at which the current iteration's measurement was performed.
-        This is relevant because the target function and its derivative are 
-        time-dependent.
-    particle: float
-        The frequency particle to undergo a mutation step.
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    point: float
+        The point in parameter space (i.e. a phase) to undergo a transition.
     m: float, optional
         The mass to be used when simulating the Hamiltonian dynamics (a HMC 
-        tuning parameter) (Default is 1).
+        tuning parameter) (Default is 0.05).
     L: int, optional
         The amount of integration steps to be used when simulating the 
-        Hamiltonian dynamics (a HMC tuning parameter) (Default is 20).
+        Hamiltonian dynamics (a HMC tuning parameter) (Default is 10).
     eta: float, optional
         The integration stepsize to be used when simulating the Hamiltonian 
-        dynamics (a HMC tuning parameter) (Default is exp(-4)).
+        dynamics (a HMC tuning parameter) (Default is 5*exp(-4)).
     threshold: float, optional
         The highest HMC acceptance rate that should trigger a Metropolis-
         -Hastings mutation step (as an alternative to a  HMC mutation step) 
-        (Default is 0.1). 
+        (Default is 0.01). 
         
     Returns
     -------
-    particle: float
-        The mutated frequency particle.
+    point: float
+        The point after the suggested transition (i.e. a phase parameter).
+    proposal: str
+        The mechanism used for the Markov transition ("HMC" or "MH").
     '''
     if (threshold<1):
         # Perform a Hamiltonian Monte Carlo mutation.
@@ -324,33 +338,6 @@ def hamiltonian_MC_step(data, point, m=0.05, L=10, eta=5*10**-4,
         new_point, p = simulate_dynamics(data,initial_momentum,point,m,L,eta)
     else:
         p = 0
-    '''
-    counter=0
-    while (p < threshold) and (counter<3):
-        new_point, p = simulate_dynamics(data,initial_momentum,point,m,L,eta,
-                                         factor=10**-(counter+1))
-        counter += 1
-        
-    if (p < threshold):
-        proposal = "MH"
-        MH = True
-        new_point, p = metropolis_hastings_step(data,point)
-        total_MH += 1
-    else:
-        proposal = "HMC"
-        MH = False
-        total_HMC += 1
-        
-    a = min(1,p) 
-    if (np.random.rand() < a):
-        if MH:
-            accepted_MH += 1
-        else:
-            accepted_HMC += 1
-        return(new_point, proposal)
-    else:
-        return(point, proposal)
-    '''
     if (p < threshold):
         proposal = "MH"
         MH = True
@@ -373,6 +360,30 @@ def hamiltonian_MC_step(data, point, m=0.05, L=10, eta=5*10**-4,
 
     
 def plot_likelihood(data, points=None, point_types=None):
+    '''
+    Plots - on the interval [0,2*pi[ - the likelihood function corresponding to 
+    the given data (which is the product of the individual likelihoods of each 
+    datum), as well as (optionally) a set of points (as an overposed scatter 
+    plot).
+    If a list of labels indicating the methods used for the Markov transitions 
+    used to get each point is given, the points will be colored according to 
+    these labels.
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    points: [float], optional
+        A list of consecutive x-coordinates to be plotted. The y-coordinates
+        will be obtained by enumeration, so that the upward direction of the 
+        y-axis denotes evolution (Default is None).
+    point_types: [str], optional
+        A list giving the methods used for the Markov transitions, by the same 
+        order as in the list of points. These methods can be either "HMC" or 
+        "MH", and will be used to color and label the points (Default is None).
+    '''
     fig, axs = plt.subplots(1,figsize=(15,10))
     axs.set_title("Phase Estimation with MCMC (HMC/MH)",pad=20,fontsize=18)
     axs.set_ylabel("Likelihood",fontsize=14)
@@ -402,6 +413,16 @@ def plot_likelihood(data, points=None, point_types=None):
         axs2.legend(loc='upper right',fontsize=14)
 
 def offline_phase_estimation(measurements,steps):
+    '''
+    Performs phase estimation using a pre-defined set of experimental controls.
+    
+    Parameters
+    ----------
+    measurements: int
+        The total number of measurements to be performed.
+    steps: int
+        The total number of steps for which to evolve the Markov chain.
+    '''
     global phi_real, N_samples
     data = []
     for i in range(round(measurements**0.5)):
@@ -422,6 +443,22 @@ def offline_phase_estimation(measurements,steps):
     plot_likelihood(data,points=trajectory, point_types=proposals)
 
 def adaptive_phase_estimation(measurements,steps):
+    '''
+    Performs phase estimation, using the data from experiments for which the 
+    controls are chosen adaptively.
+    
+    Parameters
+    ----------
+    measurements: int
+        The total number of measurements to be performed.
+    steps: int
+        The number of steps for which to evolve the Markov chain for each added
+        measurement. The total number of steps will be measurements*steps.
+        The Markov chain will undergo n='steps' transitions on each of the 
+        cumulative products of likelihoods, meaning on the ith iteration of the 
+        outer loop it will be sampling according to the probability density 
+        arising from the joint data of the first i measurements.
+    '''
     global phi_real
     data = []
     M,theta = 1,random.random()*2*np.pi # Arbitrary first measurement.
@@ -458,8 +495,6 @@ def adaptive_phase_estimation(measurements,steps):
         data.append((M,theta,outcome))
         
     plot_likelihood(data,points=trajectory, point_types=proposals) 
-    #return(mean,stdev)
-
 
 def main():
     global phi_real,steps, measurements
