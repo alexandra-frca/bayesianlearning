@@ -8,9 +8,9 @@ evolve under H = f*sigma_z/2, apart from the exponential decay resulting from
 the presence of decoherence. Estimation is performed for both the precession
 frequency and the coherence time (or its inverse).
 
-The evolution of the standard deviations the "precisions" (the variance times 
-the cumulative evolution time) with the steps are plotted, and the final values 
-of these quantities (in addition to the actual error) are printed.
+The evolution of the standard deviations with the steps is plotted, and the 
+final  values of these quantities (in addition to the actual error) are 
+printed.
 
 The algorithm is repeated for a number of runs with randomly picked real
 values, and medians are taken over all of them to get the results and graphs.

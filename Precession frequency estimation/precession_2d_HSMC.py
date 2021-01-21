@@ -12,9 +12,9 @@ A sequential Monte Carlo approximation is used to represent the probability
 distributions, using Hamiltonian Monte Carlo and Metropolis-Hastings mutation 
 steps.
 
-The evolution of the standard deviations the "precisions" (the variance times 
-the cumulative evolution time) with the steps are plotted, and the final values 
-of these quantities (in addition to the actual error) are printed.
+The evolution of the standard deviations with the steps is plotted, and the 
+final  values of these quantities (in addition to the actual error) are 
+printed.
 
 The algorithm is repeated for a number of runs with randomly picked real
 values, and medians are taken over all of them to get the results and graphs.
@@ -27,7 +27,7 @@ dim=2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
-N_particles = 25 # Number of samples used to represent the probability
+N_particles = 2500 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
 f_real, alpha_real = 0, 0 # The parameters we mean to estimate (a precession
@@ -69,8 +69,6 @@ def simulate_1(particle, t):
     Provides an estimate for the likelihood  P(D=1|test_f,t) of an x-spin 
     measurement at time t yielding result |+>, given a set of parameters for 
     the fixed form Hamiltonian. 
-    This estimate is computed as the fraction of times a simulated system
-    evolution up to time t yields said result upon measurement.
     
     Parameters
     ----------
@@ -140,7 +138,7 @@ def target_U(outcome,particle,t):
     if (l<=0):
         print("Likelihood is %f, cannot compute log.\n"
               "Frequency: %f;\nAlpha: %f;\nTime: %f" % 
-              (likelihood, test_f,test_alpha,t))
+              (l, test_f,test_alpha,t))
     U = -np.log(l)
     return (U)
 
@@ -810,8 +808,8 @@ def main():
     alpha_particles = N_particles/f_particles
     
     # Start with a uniform prior. 
-    fs = np.arange(f_max/N_particles,f_max+f_max/N_particles,
-                   f_max/N_particles) 
+    fs = np.arange(f_max/f_particles,f_max+f_max/f_particles,
+                   f_max/f_particles) 
     alphas = np.arange(0,alpha_max+alpha_max/alpha_particles,
                    alpha_max/(alpha_particles-1))
     prior = {}
