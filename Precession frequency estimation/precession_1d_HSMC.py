@@ -171,10 +171,13 @@ def U_gradient(data,test_f,autograd=False):
         minus_DU_f = grad(loglikelihood,1)
         DU = -minus_DU_f(usable_data,float(test_f))
     else:
-        DU = np.sum([(outcome==1)*(t*np.sin(test_f*t/2)/np.cos(test_f*t/2))+
-                     (outcome==0)*(-t*np.sin(test_f*t/2)*np.cos(test_f*t/2)/
-                                   (1-np.cos(test_f*t/2)**2)) 
-                     for (t,outcome) in usable_data])
+        DU = 0
+        for (t,outcome) in usable_data:
+            if outcome==1:
+                DU+=t*np.sin(test_f*t/2)/np.cos(test_f*t/2)
+            if outcome==0:
+                DU+=-t*np.sin(test_f*t/2)*np.cos(test_f*t/2)\
+                    /np.sin(test_f*t/2)**2
     return(DU)
 
 def gaussian(x, mu, sigma, normalize=False):
@@ -342,7 +345,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta,
     return new_particle, p
         
 first = True
-def hamiltonian_MC_step(data, point, m=1, L=20, eta=10**-6, 
+def hamiltonian_MC_step(data, point, m=1, L=20, eta=10**-7, 
                         threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
@@ -533,14 +536,14 @@ def offline_estimation(distribution, f_max, steps, increment=0.08):
     increment: float, optional
         The increment between consecutive measurement times (Default is 0.08).
     '''
-    # We'll use evenly spaced times, fixed in advance.
     mean, stdev = SMCparameters(distribution)
     means, stdevs = [], []
     means.append(mean)
     stdevs.append(stdev) 
     data = []
-    
+    # We'll use evenly spaced times, fixed in advance.
     ts = np.arange(1, steps+1)*increment
+    #ts = np.arange(1, steps+1)*increment
     for t in ts:
         data.append((t,measure(t)))
         # Update the distribution: get the posterior of the current iteration, 
@@ -643,6 +646,7 @@ def adaptive_guess(distribution, k, guesses):
         utilities.append(expected_utility(distribution,t))
     return(adaptive_ts[np.argmax(utilities)])
 
+first_adaptive_estimation = True
 def adaptive_estimation(distribution, steps, k=1, guesses=1,precision=0):
     '''
     Estimates the precession frequency by adaptively performing a set of 
@@ -686,6 +690,12 @@ def adaptive_estimation(distribution, steps, k=1, guesses=1,precision=0):
         A list of the consecutive distribution standard deviations, including 
         the prior's and the ones resulting from every intermediate step.
     '''
+    global first_adaptive_estimation
+    if first_adaptive_estimation is True:
+        print("Adaptive estimation: k=%.2f; %d guess(es) per step" % 
+              (k,guesses))
+        first_adaptive_estimation = False
+        
     mean, stdev = SMCparameters(distribution)
     means, stdevs, cumulative_times = [], [], []
     means.append(mean)

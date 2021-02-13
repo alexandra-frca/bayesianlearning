@@ -268,7 +268,8 @@ def metropolis_hastings_step(data, particle, S=np.identity(2),
                                  for i in range(dim)])
 
     # Compute the probabilities of transition for the acceptance probability.
-    inverse_transition_prob = np.product([gaussian(particle[i],new_particle[i],
+    inverse_transition_prob = \
+        np.product([gaussian(particle[i],new_particle[i],
                                                   Sigma[i][i]) 
                                           for i in range(dim)])
     transition_prob = np.product([gaussian(new_particle[i],particle[i],
