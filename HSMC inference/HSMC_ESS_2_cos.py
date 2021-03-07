@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Hamiltonian learning implementation for a simple precession example, using both
-offline and adaptive Bayesian inference.
+Performs inference for the frequencies of a probability function given by
+a product of squared cosines.
 
 The qubit is assumed to be initialized at state |+> for each iteration, and to
 evolve under H = f*sigma_z/2, apart from the exponential decay resulting from 
@@ -27,7 +27,7 @@ dim=2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
-N_particles = 400 # Number of samples used to represent the probability
+N_particles = 100 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
 real_parameters = None
@@ -366,6 +366,9 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
     '''
     return new_particle, p
         
+
+# Seems to work nice for: M=I, L=10, eta=0.001, N_particles=100, 
+#resampling at N_particles/2. Mostly tested for frequencies 0.2 and 0.7. 
 first_hamiltonian_MC_step = True
 def hamiltonian_MC_step(data, particle, 
                         M=np.identity(2), L=10, eta=0.001, threshold=0.1):
