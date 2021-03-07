@@ -27,7 +27,7 @@ dim=2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
-N_particles = 49 # Number of samples used to represent the probability
+N_particles = 400 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
 real_parameters = None
@@ -368,7 +368,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
         
 first_hamiltonian_MC_step = True
 def hamiltonian_MC_step(data, particle, 
-                        M=np.identity(2), L=20, eta=0.001, threshold=0.1):
+                        M=np.identity(2), L=20, eta=0.005, threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
     
@@ -613,8 +613,7 @@ def offline_estimation(distribution, steps, increment=0.08):
     
     #ts = np.arange(1, steps+1)*increment
     ts = [(9/8)**k for k in range(steps)]
-    for i,t in enumerate(ts):
-        print(i,end=",")
+    for t in ts:
         data.append((t,measure(t)))
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
@@ -624,7 +623,7 @@ def offline_estimation(distribution, steps, increment=0.08):
 
 def main():
     global real_parameters, N_particles, lbound, rbound, dim
-    real_parameters = np.array([0.5,0.5])
+    real_parameters = np.array([0.2,0.7])
 
     # We will start with a uniform prior within the boundaries. 
     
@@ -646,14 +645,14 @@ def main():
         key = particle.tobytes()
         prior[key] = 1/N_particles
     
-    steps = 10
+    steps = 30
     final_dist = offline_estimation(prior.copy(),steps)
     
     keys = list(final_dist.keys())
     particles = [np.frombuffer(key,dtype='float64') for key in keys]
     
     fig, axs = plt.subplots(1,figsize=(8,8))
-    
+
     plt.xlim([0,1])
     plt.ylim([0,1])
     
@@ -662,7 +661,7 @@ def main():
     weights = [final_dist[key]*200 for key in keys]
     axs.scatter(x1, x2, marker='o',s=weights)
 
-    print("\nn=%d; N=%d" % (N_particles,steps))
+    print("n=%d; N=%d" % (N_particles,steps))
     
     global total_HMC, accepted_HMC, total_MH, accepted_MH
     if (total_HMC != 0) or (total_MH != 0):
