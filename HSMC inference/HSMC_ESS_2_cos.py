@@ -368,7 +368,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
         
 first_hamiltonian_MC_step = True
 def hamiltonian_MC_step(data, particle, 
-                        M=np.identity(2), L=20, eta=0.005, threshold=0.1):
+                        M=np.identity(2), L=10, eta=0.001, threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
     
@@ -480,20 +480,7 @@ def bayes_update(data, distribution, threshold=N_particles/2):
         distribution[key] = w
         acc_squared_weight += w**2 # The inverse participation ratio will be
         #used to decide whether to resample.
-    '''
 
-    t,outcome = data[-1]
-    for key in distribution:
-        
-        p1 = simulate_1(particle,t)
-        if (outcome==1):
-            w = p1
-        if (outcome==0):
-            w = 1-p1
-        distribution[key] = w
-        acc_squared_weight += w**2 # The inverse participation ratio will be
-        #used to decide whether to resample.
-    '''
     if (1/acc_squared_weight <= threshold):
         # Perform an importance sampling step (with replacement) according to                
         #the updated weights.
@@ -501,9 +488,9 @@ def bayes_update(data, distribution, threshold=N_particles/2):
                                               weights=distribution.values(),
                                               k=N_particles)
         
-        stdevs = SMCparameters(selected_particles)[1]
+        stdevs = SMCparameters(selected_particles,list=True)[1]
         Cov = np.diag(stdevs**2)
-        Cov = np.identity(2) # To test just identity mass. Fix SMC for above
+        #Cov = np.identity(2) # To test just identity mass. Fix SMC for above
         
         # Check for singularity (the covariance matrix must be invertible).
         if (np.linalg.det(Cov) == 0): 
@@ -527,7 +514,7 @@ def bayes_update(data, distribution, threshold=N_particles/2):
             
     return distribution
 
-def SMCparameters(distribution, stdev=True):
+def SMCparameters(distribution, stdev=True, list=False):
     '''
     Calculates the mean and (optionally) standard deviation of a given 
     distribution.
@@ -535,37 +522,33 @@ def SMCparameters(distribution, stdev=True):
     Parameters
     ----------
     distribution: dict
-        , with (key,value):=(particle,importance weight) 
-        , and particle=[f,alpha]:=[frequency,decay factor] (as a bit string)
+        , with (key,value):=(frequency particle,importance weight)
         The distribution (SMC approximation) whose parameters are to be 
-        calculated. This can also be a list if the weights are uniform.
+        calculated.
     stdev: bool
         To be set to False if the standard deviation is not to be returned 
         (Default is True).
         
     Returns
     -------
-    means: [float]
-        The means of the distribution along its two dimensions: frequency and
-        decay factor (the inverse of the coherence time), by this order.
-    stdevs: [float]
-        The standard deviation of the distribution along its two dimensions: 
-        frequency and decay factor (the inverse of the coherence time), by this 
-        order.
+    mean: float
+        The mean of the distribution.
+    stdev: float
+        The standard deviation of the distribution.
     '''
-    global dim, N_particles
     means, meansquares = np.zeros(dim)
     for key in distribution:
         particle = np.frombuffer(key,dtype='float64')
-        means += particle
-        meansquares += particle**2
-    means = means/N_particles
-    meansquares = meansquares/N_particles
-    
+        if list: # Distribution is given as a dictionary with implicitly 
+        #uniform weights.
+            w = 1/len(distribution)
+        else: # Distribution is given by a dictionary with values as weights.
+            w = distribution[key]
+        means += particle*w
+        meansquares += particle**2*w
     if not stdev:
         return means
-    
-    stdevs = abs(means**2-meansquares)**0.5    
+    stdevs = abs(means**2-meansquares)**0.5
     return means,stdevs
 
 first_offline_estimation = True
@@ -613,11 +596,14 @@ def offline_estimation(distribution, steps, increment=0.08):
     
     #ts = np.arange(1, steps+1)*increment
     ts = [(9/8)**k for k in range(steps)]
-    for t in ts:
+    for i,t in enumerate(ts):
         data.append((t,measure(t)))
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        distribution = bayes_update(data, distribution) 
+        if (i<0):
+          distribution = bayes_update(data, distribution,threshold=0) 
+        else:
+          distribution = bayes_update(data, distribution) 
         
     return distribution
 
@@ -645,7 +631,7 @@ def main():
         key = particle.tobytes()
         prior[key] = 1/N_particles
     
-    steps = 30
+    steps = 50
     final_dist = offline_estimation(prior.copy(),steps)
     
     keys = list(final_dist.keys())
@@ -675,6 +661,6 @@ def main():
     if (total_MH != 0):
         print("* Metropolis-Hastings:     %d%% mean particle acceptance rate." 
               % round(100*accepted_MH/total_MH))
-    
+
     
 main()
