@@ -13,7 +13,7 @@ The final particle positions are plotted.
 import sys, itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
-dim = 4
+dim = 2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
@@ -580,7 +580,7 @@ def offline_estimation(distribution, data, threshold=None):
         
         if (i%10==0): # Print progress update every 10 iterations.
           print(i,end=";")
-        
+    print("\n",end="")
     return distribution
 
 first_plot_distribution = True
@@ -614,9 +614,6 @@ def plot_distribution(distribution, real_parameters, note=""):
         x2 = [particle[i+1] for particle in particles]
         weights = [distribution[key]*200 for key in keys]
         axs.scatter(x1, x2, marker='o',s=weights)
-        
-    
-    
 
 def uniform_prior():
     global N_particles, lbound, rbound, dim
@@ -641,8 +638,8 @@ def uniform_prior():
         
     return(prior)
 
-def print_HMC_stats():
-    print("\nn=%d^%d; N=%d; %dd" % (N_particles**(1/dim),dim,steps,dim))
+def print_stats():
+    print("n=%.2f^%d; N=%d; %dd" % (N_particles**(1/dim),dim,steps,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
       print("* Total resampler calls:  %d." 
@@ -663,7 +660,7 @@ def main():
     if random_parameters:
         real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        real_parameters = np.array([0.25,0.77,0.40,0.52])
+        real_parameters = np.array([3,7]) #np.array([0.25,0.77,0.40,0.52])
     
     steps = 2
     t_max = 100
@@ -671,7 +668,7 @@ def main():
     data=[(t,measure(t)) for t in ts]
     print("Offline estimation: random times <= %d" % t_max)
     
-    test_resampling, test_no_resampling = True, True
+    test_resampling, test_no_resampling = True, False
     
     if test_no_resampling: # Just for reference.
         N_particles = 15**dim
@@ -679,18 +676,33 @@ def main():
         dist_no_resampling = offline_estimation(prior.copy(),data,threshold=0)
         plot_distribution(dist_no_resampling,real_parameters,
                           note="(no resampling)")
-        print("\nNo resampling test completed.")
-    
+        print("No resampling test completed.")
+
     if test_resampling:
         global first_bayes_update
         first_bayes_update = True
-        N_particles = 15**dim
+
+        groups = 4
+        N_particles = 3**dim # Each.
         prior = uniform_prior()
-        final_dist = offline_estimation(prior.copy(),data,
-                                        threshold=500)
+
+        final_dists = []
+        for i in range(groups):
+            print("Group %d." % (i+1))
+            final_dists.append(offline_estimation(prior.copy(),data,
+                                            threshold=500))
+            
+        N_particles = N_particles*groups # To get the correct statistics. 
+        all_keys = set.union(*[set(d) for d in final_dists])
+        
+        # The final distribution is given by the normalized sum of weights
+        #for each key.
+        final_dist = {key: np.sum([d.get(key, 0) for d in final_dists])/groups\
+                      for key in all_keys}
+            
         plot_distribution(final_dist,real_parameters)
 
     
-    print_HMC_stats()
+    print_stats()
     
 main()
