@@ -13,7 +13,7 @@ The final particle positions are plotted.
 import sys, itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
-dim = 4
+dim = 2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
@@ -90,12 +90,9 @@ def likelihood(data,particle):
     p: float
         The estimated probability of obtaining the input outcome. 
     '''
-    if np.size(data)==2: # Single datum case.
-        t,outcome = data
-        p = simulate_1(particle,t)*(outcome==1)+\
-            (1-simulate_1(particle,t))*(outcome==0) 
-    else:
-        p = np.product([likelihood(datum, particle) for datum in data])
+    
+    p = np.product([simulate_1(particle,t) if (outcome==1)
+                        else 1-simulate_1(particle,t) for (t,outcome) in data])
     return p 
 
 def target_U(data,particle):
@@ -117,7 +114,7 @@ def target_U(data,particle):
     U: float
         The value of the "energy".
     '''
-    U = -np.sum([np.log(likelihood(datum, particle)) for datum in data])
+    U = -np.log(likelihood(data, particle)) 
     return (U)
 
 def U_gradient(data,particle,autograd=False):
@@ -345,7 +342,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
         
 first_hamiltonian_MC_step = True
 def hamiltonian_MC_step(data, particle, 
-                        M=np.identity(3), L=10, eta=0.01, threshold=0.1):
+                        M=np.identity(dim), L=10, eta=0.01, threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
     
@@ -422,7 +419,7 @@ def hamiltonian_MC_step(data, particle,
         return(particle)
 
 first_bayes_update = True
-def bayes_update(data, distribution, threshold):
+def bayes_update(data, distribution, new, threshold):
     '''
     Updates a prior distribution according to the outcome of a measurement, 
     using Bayes' rule. 
@@ -451,10 +448,12 @@ def bayes_update(data, distribution, threshold):
     acc_weight, acc_squared_weight = 0, 0
     
     # Perform a correction step by re-weighting the particles according to 
-    #the last datum obtained.
+    #the last chunk of data added (i.e. to the ratio between the latest 
+    #cumulative likelihood to the previous one, which cancels out all but those 
+    #newest data).
     for key in distribution:
         particle = np.frombuffer(key,dtype='float64')
-        new_weight = likelihood(data[-1],particle)*distribution[key]
+        new_weight = likelihood(data[new],particle)*distribution[key]
         distribution[key] = new_weight
         acc_weight += new_weight
     
@@ -538,7 +537,8 @@ def SMCparameters(distribution, stdev=True, list=False):
     stdevs = abs(means**2-meansquares)**0.5
     return means,stdevs
 
-def offline_estimation(distribution, data, threshold=None):
+first_offline_estimation = True
+def offline_estimation(distribution, data, threshold=None, chunksize=1):
     '''
     Estimates the vector of parameters by defining a set of experiments (times)
     , performing them, and updating a given prior distribution according to the
@@ -567,19 +567,31 @@ def offline_estimation(distribution, data, threshold=None):
         , and particle the parameter vector (as a bit string)
         The final distribution (SMC approximation).
     '''
+    global first_bayes_update
+    if first_bayes_update is True:
+        print("Estimation: data chunksize = ", chunksize)
+        first_bayes_update = False
         
     if threshold is None:
         threshold = N_particles/2
-
-    for i in range(len(data)):
+        
+    updates = len(data)//chunksize
+    for i in range(updates):
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
         # At each step k data up to index k are used. 
-        distribution = bayes_update(data[0:(i+1)], distribution, 
-                                    threshold=threshold) 
+        new = slice(i*chunksize,(i+1)*chunksize)
+        distribution = bayes_update(data[0:((i+1)*chunksize)], distribution, 
+                                    new, threshold) 
         
         if (i%10==0): # Print progress update every 10 iterations.
           print(i,end=";")
+          
+    # Use the remaining data if appliable. 
+    if len(data)%chunksize!=0:
+        new = slice(updates*chunksize,len(data))
+        distribution = bayes_update(data, distribution, 
+                                new, threshold) 
         
     return distribution
 
@@ -615,9 +627,6 @@ def plot_distribution(distribution, real_parameters, note=""):
         weights = [distribution[key]*200 for key in keys]
         axs.scatter(x1, x2, marker='o',s=weights)
         
-    
-    
-
 def uniform_prior():
     global N_particles, lbound, rbound, dim
     
@@ -641,7 +650,7 @@ def uniform_prior():
         
     return(prior)
 
-def print_HMC_stats():
+def print_stats():
     print("\nn=%d^%d; N=%d; %dd" % (N_particles**(1/dim),dim,steps,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
@@ -663,7 +672,7 @@ def main():
     if random_parameters:
         real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        real_parameters = np.array([0.25,0.77,0.40,0.52])
+        real_parameters = np.array([0.25,0.77]) #np.array([0.25,0.77,0.40,0.52])
     
     steps = 2
     t_max = 100
@@ -687,10 +696,10 @@ def main():
         N_particles = 15**dim
         prior = uniform_prior()
         final_dist = offline_estimation(prior.copy(),data,
-                                        threshold=500)
+                                        threshold=float("inf"))
         plot_distribution(final_dist,real_parameters)
 
     
-    print_HMC_stats()
+    print_stats()
     
 main()
