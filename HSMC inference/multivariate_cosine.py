@@ -8,7 +8,11 @@ A sequential Monte Carlo approximation is used to represent the probability
 distributions, using Hamiltonian Monte Carlo and Metropolis-Hastings mutation 
 steps.
 
-The final particle positions are plotted.
+The particle positions are plotted.
+
+Note: doesn't seem to work very well for higher dimensions and/or large  
+chunksizes and/or low resampling thresholds (possibly due to relying too much on  
+the multiplication of small numbers?).
 """
 
 import itertools, random, matplotlib.pyplot as plt
@@ -60,6 +64,8 @@ def simulate_1(particle, t, d):
         The set of parameters to be used in the simulation.
     t: float
         The measurement time, an experimental control.
+    d: int
+        The dimension along which to sample.
         
     Returns
     -------
@@ -73,7 +79,7 @@ def likelihood(data,particle):
     '''
     Provides an estimate for the likelihood  P(D|test_f,t) of x-spin 
     measurements yielding the input vector of data, given test parameters for  
-    the fixed form Hamiltonian. 
+    the distribution. 
     
     Parameters
     ----------
