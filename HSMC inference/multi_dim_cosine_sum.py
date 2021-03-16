@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Performs inference for the frequencies of a probability function given by
-a sum of squared cosines: sum_i [ cos(theta_i*t/2) ].
+Performs inference on the frequencies of a multi-parameter binomial probability
+distribution with success probability given by a sum of squared cosines: 
+sum_i [ cos(theta_i*t/2)^2 ].
 
 A sequential Monte Carlo approximation is used to represent the probability 
 distributions, using Hamiltonian Monte Carlo and Metropolis-Hastings mutation 
@@ -424,7 +425,7 @@ def hamiltonian_MC_step(data, particle,
         return(particle)
 
 first_bayes_update = True
-def bayes_update(data, new, distribution, threshold):
+def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     '''
     Updates a prior distribution according to the outcome of a measurement, 
     using Bayes' rule. 
@@ -441,17 +442,29 @@ def bayes_update(data, new, distribution, threshold):
     distribution: dict
         , with (key,value):=(particle,importance weight) 
         , and particle the parameter vector (as a bit string)
-        The prior distribution (SMC approximation). When returning, it will 
-        have been updated according to the provided experimental datum.
+        The prior distribution (SMC approximation).
     threshold: float
         The threshold effective sample size that should trigger a resampling 
         step. 
+    signal_resampling: bool, optional
+        Whether to return a second variable denoting the ocurrence of 
+        resampling (Default is False).
+        
+    Returns
+    -------
+    distribution: dict
+        , with (key,value):=(particle,importance weight) 
+        , and particle the parameter vector (as a bit string)
+        The updated distribution (SMC approximation).
+    resampled: bool
+        Whether resampling has occurred.
     '''
     global first_bayes_update
     if first_bayes_update is True:
         print("Bayes update: resampling threshold = ", threshold)
         first_bayes_update = False
 
+    global N_particles
     acc_weight, acc_squared_weight = 0, 0
     
     # Perform a correction step by re-weighting the particles according to 
@@ -471,7 +484,9 @@ def bayes_update(data, new, distribution, threshold):
         acc_squared_weight += w**2 # The inverse participation ratio will be
         #used to decide whether to resample.
 
+    resampled = False
     if (1/acc_squared_weight <= threshold):
+        resampled = True
         # Perform an importance sampling step (with replacement) according to                
         #the updated weights.
         selected_particles = random.choices(list(distribution.keys()), 
@@ -501,7 +516,10 @@ def bayes_update(data, new, distribution, threshold):
                 if (key not in distribution):
                     repeated = False
             distribution[key] = 1/N_particles
-            
+    
+    if signal_resampling:
+        return distribution, resampled
+
     return distribution
 
 def SMCparameters(distribution, stdev=True, list=False):
@@ -544,83 +562,6 @@ def SMCparameters(distribution, stdev=True, list=False):
         return means
     stdevs = abs(means**2-meansquares)**0.5
     return means,stdevs
-
-first_offline_estimation = True
-def offline_estimation(distribution, data, threshold=None, chunksize=1):
-    '''
-    Estimates the vector of parameters by defining a set of experiments (times)
-    , performing them, and updating a given prior distribution according to the
-    outcomes (using Bayesian inference).
-    
-    Parameters
-    ----------
-    distribution: dict
-        , with (key,value):=(particle,importance weight) 
-        , and particle the parameter vector (as a bit string)
-        The prior distribution (SMC approximation).
-    data: [(float,int)]
-        A vector of experimental results obtained so far and their respective 
-        controls, each datum being of the form (time,outcome), where 'time' is          
-        the control used for each experiment and 'outcome' is its result.
-    threshold: float, optional
-        The threshold effective sample size that should trigger a resampling 
-        step when updating the distribution (Default is None, N_particles/2 
-        will be used given the current value of the global variable 
-        N_particles). 
-    chunksize: int, optional
-        The number of data to be added at each iteration; the cumulative data 
-        makes up the target posterior to be sampled from at each step (Default 
-        is 1).
-        
-    Returns
-    -------
-    distribution: dict
-        , with (key,value):=(particle,importance weight) 
-        , and particle the parameter vector (as a bit string)
-        The final distribution (SMC approximation).
-    '''
-    global first_offline_estimation
-    if first_offline_estimation is True:
-        print("Estimation: data chunksize = ", chunksize)
-        first_offline_estimation = False
-    
-    if len(data)==0:
-        return
-    
-    if threshold is None:
-        threshold = N_particles/2
-        
-    counter=0; print("|0%",end="|")
-    updates = len(data)//chunksize
-    if updates < 10:
-        progress_interval = 100/updates
-    for i in range(updates):
-        # Signal newest data for SMC weight updates.
-        new = slice(i*chunksize,(i+1)*chunksize) 
-        # Update the distribution: get the posterior of the current iteration, 
-        #which is the prior for the next.
-        distribution = bayes_update(data[0:((i+1)*chunksize)], new, 
-                                    distribution, threshold) 
-        
-        # Print up to 10 progress updates spaced evenly through the loop.
-        if updates < 10:
-            counter+=progress_interval
-            print(round(counter),"%",sep="",end="|")
-        elif (i%(updates/10)<1): 
-            counter+=10
-            print(counter,"%",sep="",end="|")
-          
-    print("") # For newline.
-    
-    # Use the remaining data if applicable. This also ensures that all data 
-    #will be used in a single update if the chunksize is greater than the 
-    #total number of data. 
-    if len(data)%chunksize!=0:
-        new = slice(updates*chunksize,len(data))
-        distribution = bayes_update(data, distribution, 
-                                new, threshold) 
-        
-    return distribution
 
 first_plot_distribution = True
 def plot_distribution(distribution, real_parameters, note=""):
@@ -782,6 +723,99 @@ def sum_distributions(distributions):
                   len(distributions) for key in all_keys}
     return final_dist
 
+first_offline_estimation = True
+def offline_estimation(distribution, data, threshold=None, chunksize=1,
+                       plot_all=False):
+    '''
+    Estimates the vector of parameters by defining a set of experiments (times)
+    , performing them, and updating a given prior distribution according to the
+    outcomes (using Bayesian inference).
+    
+    Parameters
+    ----------
+    distribution: dict
+        , with (key,value):=(particle,importance weight) 
+        , and particle the parameter vector (as a bit string)
+        The prior distribution (SMC approximation).
+    data: [(float,int)]
+        A vector of experimental results obtained so far and their respective 
+        controls, each datum being of the form (time,outcome), where 'time' is          
+        the control used for each experiment and 'outcome' is its result.
+    threshold: float, optional
+        The threshold effective sample size that should trigger a resampling 
+        step when updating the distribution (Default is None, N_particles/2 
+        will be used given the current value of the global variable 
+        N_particles). 
+    chunksize: int, optional
+        The number of data to be added at each iteration; the cumulative data 
+        makes up the target posterior to be sampled from at each step (Default 
+        is 1).
+    plot_all: bool, optional
+        Whether to plot the particle positions at each step (Default is False).
+        
+    Returns
+    -------
+    distribution: dict
+        , with (key,value):=(particle,importance weight) 
+        , and particle the parameter vector (as a bit string)
+        The final distribution (SMC approximation).
+    '''
+    global first_offline_estimation
+    if first_offline_estimation is True:
+        print("Estimation: data chunksize = ", chunksize)
+        first_offline_estimation = False
+    
+    if len(data)==0:
+        return
+    
+    if threshold is None:
+        threshold = N_particles/2
+        
+    ans=""; resampled=False; counter=0; print("|0%",end="|")
+    updates = len(data)//chunksize+1
+    if updates < 10:
+        progress_interval = 100/updates
+    for i in range(updates):
+        if plot_all is True:
+            if updates>10:
+                while ans!="Y" and ans!="N":
+                    ans = input("> This is going to print over 10 graphs. Are"\
+                                " you sure you want that?"\
+                                " [offline_estimation]\n(Y/N)\n")
+            else:
+                ans = "Y"
+            if ans=="Y":
+                info = "- step %d" % (i)
+                info += " [resampled]" if resampled else ""
+                plot_distribution(distribution,real_parameters, 
+                                  note=info)
+            
+        # Signal newest data for SMC weight updates.
+        new = slice(i*chunksize,(i+1)*chunksize) 
+        # Update the distribution: get the posterior of the current iteration, 
+        #which is the prior for the next.
+        distribution, resampled = bayes_update(data[0:((i+1)*chunksize)], new, 
+                              distribution, threshold, signal_resampling=True) 
+        
+        # Print up to 10 progress updates spaced evenly through the loop.
+        if updates < 10:
+            counter+=progress_interval
+            print(round(counter),"%",sep="",end="|")
+        elif (i%(updates/10)<1): 
+            counter+=10
+            print(counter,"%",sep="",end="|")
+    
+        # Use the remaining data if applicable. This also ensures that all data 
+        #will be used in a single update if the chunksize is greater than the 
+        #total number of data. 
+        if i==updates-1 and len(data)%chunksize!=0:
+            new = slice(updates*chunksize,len(data))
+            distribution = bayes_update(data, distribution, 
+                                    new, threshold) 
+            
+    print("") # For newline.
+    return distribution
+
 def main():
     global real_parameters, N_particles, steps
     
@@ -792,7 +826,7 @@ def main():
         real_parameters = np.array([0.25,0.77]) 
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    steps = 200
+    steps = 150
     t_max = 100
     ts = [t_max*random.random() for k in range(steps)] 
     data=[(t,measure(t)) for t in ts]
@@ -825,11 +859,11 @@ def main():
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
             final_dists.append(offline_estimation(prior.copy(),data,
-                                          threshold=float('inf'), chunksize=50))
+                           threshold=100, chunksize=30,plot_all=True))
             
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
-        plot_distribution(final_dist,real_parameters)
+        #plot_distribution(final_dist,real_parameters)
 
     print_stats()
     

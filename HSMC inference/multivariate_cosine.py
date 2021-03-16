@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Performs inference for the frequencies of a probability function given by
-a sum of squared cosines: sum_i [ cos(theta_i*t/2) ].
-
+Performs inference on the frequencies of a multivariate probability 
+distribution given by independent single-parameter binomial distributions, the 
+probability of success being for each dimension d given by cos(theta_d*t/2)^2.
+ 
 A sequential Monte Carlo approximation is used to represent the probability 
 distributions, using Hamiltonian Monte Carlo and Metropolis-Hastings mutation 
 steps.
@@ -445,11 +446,22 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     distribution: dict
         , with (key,value):=(particle,importance weight) 
         , and particle the parameter vector (as a bit string)
-        The prior distribution (SMC approximation). When returning, it will 
-        have been updated according to the provided experimental datum.
+        The prior distribution (SMC approximation).
     threshold: float
         The threshold effective sample size that should trigger a resampling 
         step. 
+    signal_resampling: bool, optional
+        Whether to return a second variable denoting the ocurrence of 
+        resampling (Default is False).
+        
+    Returns
+    -------
+    distribution: dict
+        , with (key,value):=(particle,importance weight) 
+        , and particle the parameter vector (as a bit string)
+        The updated distribution (SMC approximation).
+    resampled: bool
+        Whether resampling has occurred.
     '''
     global first_bayes_update
     if first_bayes_update is True:
@@ -741,6 +753,8 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         The number of data to be added at each iteration; the cumulative data 
         makes up the target posterior to be sampled from at each step (Default 
         is 1).
+    plot_all: bool, optional
+        Whether to plot the particle positions at each step (Default is False).
         
     Returns
     -------
@@ -760,23 +774,23 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
     if threshold is None:
         threshold = N_particles/2
         
-    ans=""
-    counter=0; print("|0%",end="|")
+    ans=""; resampled=False; counter=0; print("|0%",end="|")
     updates = len(data)//chunksize+1
     if updates < 10:
         progress_interval = 100/updates
+        
     for i in range(updates):
         if plot_all is True:
             if updates>10:
                 while ans!="Y" and ans!="N":
                     ans = input("> This is going to print over 10 graphs. Are"\
-                                " you sure you want to print over 10 graphs?"\
+                                " you sure you want that?"\
                                 " [offline_estimation]\n(Y/N)\n")
             else:
                 ans = "Y"
             if ans=="Y":
                 info = "- step %d" % (i)
-                info += " [resampled]" if i>0 and resampled else ""
+                info += " [resampled]" if resampled else ""
                 plot_distribution(distribution,real_parameters, 
                                   note=info)
             
