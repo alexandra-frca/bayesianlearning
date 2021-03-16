@@ -428,7 +428,7 @@ def hamiltonian_MC_step(data, particle,
         return(particle)
 
 first_bayes_update = True
-def bayes_update(data, new, distribution, threshold):
+def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     '''
     Updates a prior distribution according to the outcome of a measurement, 
     using Bayes' rule. 
@@ -476,7 +476,9 @@ def bayes_update(data, new, distribution, threshold):
         acc_squared_weight += w**2 # The inverse participation ratio will be
         #used to decide whether to resample.
 
+    resampled = False
     if (1/acc_squared_weight <= threshold):
+        resampled = True
         # Perform an importance sampling step (with replacement) according to                
         #the updated weights.
         selected_particles = random.choices(list(distribution.keys()), 
@@ -506,7 +508,10 @@ def bayes_update(data, new, distribution, threshold):
                 if (key not in distribution):
                     repeated = False
             distribution[key] = 1/N_particles
-            
+    
+    if signal_resampling:
+        return distribution, resampled
+
     return distribution
 
 def SMCparameters(distribution, stdev=True, list=False):
@@ -757,26 +762,30 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         
     ans=""
     counter=0; print("|0%",end="|")
-    updates = len(data)//chunksize
+    updates = len(data)//chunksize+1
     if updates < 10:
         progress_interval = 100/updates
     for i in range(updates):
         if plot_all is True:
             if updates>10:
                 while ans!="Y" and ans!="N":
-                    ans = input("> This is going to print over 10 graphs. Are you"\
-                                " sure you want to print over 10 graphs?"\
+                    ans = input("> This is going to print over 10 graphs. Are"\
+                                " you sure you want to print over 10 graphs?"\
                                 " [offline_estimation]\n(Y/N)\n")
-                    if ans=="N":
-                        return
-            plot_distribution(distribution,real_parameters)
+            else:
+                ans = "Y"
+            if ans=="Y":
+                info = "- step %d" % (i)
+                info += " [resampled]" if i>0 and resampled else ""
+                plot_distribution(distribution,real_parameters, 
+                                  note=info)
             
         # Signal newest data for SMC weight updates.
         new = slice(i*chunksize,(i+1)*chunksize) 
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        distribution = bayes_update(data[0:((i+1)*chunksize)], new, 
-                                    distribution, threshold) 
+        distribution, resampled = bayes_update(data[0:((i+1)*chunksize)], new, 
+                              distribution, threshold, signal_resampling=True) 
         
         # Print up to 10 progress updates spaced evenly through the loop.
         if updates < 10:
@@ -785,17 +794,16 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         elif (i%(updates/10)<1): 
             counter+=10
             print(counter,"%",sep="",end="|")
-          
-    print("") # For newline.
     
-    # Use the remaining data if applicable. This also ensures that all data 
-    #will be used in a single update if the chunksize is greater than the 
-    #total number of data. 
-    if len(data)%chunksize!=0:
-        new = slice(updates*chunksize,len(data))
-        distribution = bayes_update(data, distribution, 
-                                new, threshold) 
-        
+        # Use the remaining data if applicable. This also ensures that all data 
+        #will be used in a single update if the chunksize is greater than the 
+        #total number of data. 
+        if i==updates-1 and len(data)%chunksize!=0:
+            new = slice(updates*chunksize,len(data))
+            distribution = bayes_update(data, distribution, 
+                                    new, threshold) 
+            
+    print("") # For newline.
     return distribution
 
 def main():
@@ -805,10 +813,10 @@ def main():
     if random_parameters:
         real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        real_parameters = np.array([0.25,0.77]) 
-        #real_parameters = np.array([0.25,0.77,0.40,0.52])
+        #real_parameters = np.array([0.25,0.77]) 
+        real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    steps = 150
+    steps = 100
     t_max = 100
     ts = [t_max*random.random() for k in range(steps)] 
     data=[(t,measure(t)) for t in ts]
@@ -841,7 +849,7 @@ def main():
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
             final_dists.append(offline_estimation(prior.copy(),data,
-                                      threshold=50, chunksize=1,plot_all=False))
+                                      threshold=50, chunksize=20,plot_all=True))
             
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
