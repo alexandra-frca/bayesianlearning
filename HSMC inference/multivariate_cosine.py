@@ -683,7 +683,8 @@ def print_stats():
     Prints some relevant information relative to the run of the algorithm on
     the console.
     '''
-    print("> n=%.2f^%d; N=%d; %dd" % (N_particles**(1/dim),dim,steps,dim))
+    print("> n=%.2f^%d; N=%d; %dd multivariate squared cosine" % 
+                                      (N_particles**(1/dim),dim,steps,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
       print("* Total resampler calls:  %d." 
@@ -783,8 +784,8 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         if plot_all is True:
             if updates>10:
                 while ans!="Y" and ans!="N":
-                    ans = input("> This is going to print over 10 graphs. Are"\
-                                " you sure you want that?"\
+                    ans = input("\n> This is going to print over 10 graphs. "\
+                                "Are you sure you want that?"\
                                 " [offline_estimation]\n(Y/N)\n")
             else:
                 ans = "Y"
@@ -814,8 +815,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         #total number of data. 
         if i==updates-1 and len(data)%chunksize!=0:
             new = slice(updates*chunksize,len(data))
-            distribution = bayes_update(data, distribution, 
-                                    new, threshold) 
+            distribution = bayes_update(data, new, distribution, threshold) 
             
     print("") # For newline.
     return distribution
@@ -831,7 +831,7 @@ def main():
         real_parameters = np.array([0.25,0.77,0.40,0.52])
     
     steps = 100
-    t_max = 100
+    t_max = 50
     ts = [t_max*random.random() for k in range(steps)] 
     data=[(t,measure(t)) for t in ts]
     print("Offline estimation: random times <= %d" % t_max)
@@ -863,11 +863,11 @@ def main():
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
             final_dists.append(offline_estimation(prior.copy(),data,
-                                      threshold=50, chunksize=20,plot_all=True))
+                        threshold=float('inf'), chunksize=10,plot_all=True))
             
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
-        plot_distribution(final_dist,real_parameters)
+        #plot_distribution(final_dist,real_parameters)
 
     print_stats()
     
