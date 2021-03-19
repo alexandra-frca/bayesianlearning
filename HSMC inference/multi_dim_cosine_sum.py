@@ -498,8 +498,12 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
         
         # Check for singularity (the covariance matrix must be invertible).
         if (np.linalg.det(Cov) == 0): 
-            print("> The covariance matrix must be invertible. [bayes_update]")
-            return
+            print("\n> The covariance matrix must be invertible, but it is\n%s"
+                  "\n...As such, the updating process has been interrupted."
+                  " [bayes_update]" % Cov)
+            if signal_resampling:
+                return distribution, None # Resampling interrupted midway.
+            return distribution
     
         Cov_inv = np.linalg.inv(Cov)
     
@@ -583,6 +587,26 @@ def plot_distribution(distribution, real_parameters, note=""):
         Some string to be appended to the graph title (Default is ""). 
     '''
     global first_plot_distribution
+    
+    if dim==1:
+        keys = list(distribution.keys())
+        particles = [np.frombuffer(key,dtype='float64')[0] for key in keys]
+        
+        fig, axs = plt.subplots(1,figsize=(8,8))
+        plt.ylim([lbound[0],rbound[0]])
+        plt.title("1-d particle distribution %s" % (note))
+        plt.xlabel("Particle index (for visualization, not identification)")
+        plt.ylabel("Parameter value")
+        
+        particle_enum = list(enumerate(particles))
+        particle_indexes = [pair[0] for pair in particle_enum]
+        particle_locations = [pair[1] for pair in particle_enum]
+        
+        weights = [distribution[key]*200 for key in keys]
+        axs.scatter(particle_indexes,particle_locations,s=weights)
+        
+        return
+    
     if dim%2!=0:
         if first_plot_distribution is True:
             print("> Dimension is odd, cannot combine parameters pairwise; one"
@@ -777,7 +801,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
     if updates < 10:
         progress_interval = 100/updates
     for i in range(updates):
-        if plot_all is True:
+        if plot_all:
             if updates>10:
                 while ans!="Y" and ans!="N":
                     ans = input("\n> This is going to print over 10 graphs. "\
@@ -797,6 +821,13 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         #which is the prior for the next.
         distribution, resampled = bayes_update(data[0:((i+1)*chunksize)], new, 
                               distribution, threshold, signal_resampling=True) 
+        if resampled is None:
+            print("> Process interrupted at iteration %d due to non-invertible"
+                  " covariance matrix. [offline_estimation]" % i,end="")
+            if plot_all:
+                plot_distribution(distribution,real_parameters, 
+                  note="(interrupted; importance sampled but no Markov moves)")
+            break
         
         # Print up to 10 progress updates spaced evenly through the loop.
         if updates < 10:
@@ -835,7 +866,7 @@ def main():
     test_resampling, test_no_resampling = True, True
     
     if test_no_resampling: # Just for reference.
-        N_particles = 15**dim
+        N_particles = 20**dim
         prior = generate_prior(distribution_type="uniform")
         dist_no_resampling = offline_estimation(prior.copy(),data,threshold=0)
         plot_distribution(dist_no_resampling,real_parameters,
@@ -850,7 +881,7 @@ def main():
         #particle groups, on the same data. Their results will be joined 
         #together in the end.
         
-        N_particles = 15**dim # For each group. Should be a power with integer
+        N_particles = 20**dim # For each group. Should be a power with integer
         #base and exponent `dim` so the particles can be neatly arranged into a
         #cubic latice for the prior (unless not using a uniform distribution).
         prior = generate_prior(distribution_type="uniform")
@@ -859,7 +890,7 @@ def main():
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
             final_dists.append(offline_estimation(prior.copy(),data,
-                           threshold=100, chunksize=50,plot_all=True))
+                          threshold=100, chunksize=50,plot_all=True))
             
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
