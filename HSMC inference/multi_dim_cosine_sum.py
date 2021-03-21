@@ -21,8 +21,8 @@ total_MH, accepted_MH = 0, 0
 N_particles = None # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
-steps = None # Number of Bayes updates to be performed (coincides with number 
-#of data in the case where chunksize=1).
+measurements = None # Length of the data record (coincides with the number of 
+#Bayes updates to be performed in the case where chunksize=1).
 
 real_parameters = None
 
@@ -78,7 +78,7 @@ def likelihood(data,particle):
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -102,7 +102,7 @@ def target_U(data,particle):
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -125,7 +125,7 @@ def U_gradient(data,particle,autograd=False):
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -205,7 +205,7 @@ def metropolis_hastings_step(data, particle, S=None,
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -274,7 +274,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -355,7 +355,7 @@ def hamiltonian_MC_step(data, particle,
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -432,7 +432,7 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     
     Parameters
     ----------
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -708,7 +708,7 @@ def print_stats():
     the console.
     '''
     print("> n=%.2f^%d; N=%d; %dd sum of squared cosines" % 
-                                      (N_particles**(1/dim),dim,steps,dim))
+                                  (N_particles**(1/dim),dim,measurements,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
       print("* Total resampler calls:  %d." 
@@ -765,7 +765,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         , with (key,value):=(particle,importance weight) 
         , and particle the parameter vector (as a bit string)
         The prior distribution (SMC approximation).
-    data: [(float,int)]
+    data: [([float],int)]
         A vector of experimental results obtained so far and their respective 
         controls, each datum being of the form (time,outcome), where 'time' is          
         the control used for each experiment and 'outcome' is its result.
@@ -851,7 +851,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
     return distribution
 
 def main():
-    global real_parameters, N_particles, steps
+    global real_parameters, N_particles, measurements
     
     random_parameters = False
     if random_parameters:
