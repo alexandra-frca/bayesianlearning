@@ -167,11 +167,13 @@ def test_differentiation():
     Both are evaluated for the same representative set of inputs and printed on 
     the console.
     '''
-    data = np.array([(random.random(),1),(random.random(),0)])
+    
+    data = np.array([(random.random(),np.ones(dim)),
+                     (random.random(),np.zeros(dim))])
     particle = np.array([random.random() for d in range(dim)])
     print("Autodiff: ", U_gradient(data,particle,autograd=True))
     print("Analytical: ",U_gradient(data,particle,autograd=False))
-
+    
 def gaussian(x, mu, sigma, normalize=False):
     '''
     Evaluates a gaussian function at a given point for some specified set of
@@ -833,12 +835,12 @@ def main():
     if random_parameters:
         real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        #real_parameters = np.array([0.25,0.77]) 
-        real_parameters = np.array([0.25,0.77,0.40,0.52])
+        real_parameters = np.array([0.25,0.77]) 
+        #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    steps = 100
+    measurements = 100
     t_max = 50
-    ts = [t_max*random.random() for k in range(steps)] 
+    ts = [t_max*random.random() for k in range(measurements)] 
     data=[(t,measure(t)) for t in ts]
     print("Offline estimation: random times <= %d" % t_max)
     

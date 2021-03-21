@@ -67,7 +67,7 @@ def simulate_1(particle, t):
     p: float
         The estimated probability of getting result 1.
     '''
-    p=np.sum(np.cos(particle*t/2)**2/4)
+    p=np.sum(np.cos(particle*t/2)**2/dim)
     return p 
 
 def likelihood(data,particle):
@@ -145,11 +145,11 @@ def U_gradient(data,particle,autograd=False):
     else:
         DU = np.array(np.zeros(dim))
         for (t,outcome) in data:
-            f = np.sum(np.cos(particle*t/2)**2)/4
+            f = np.sum(np.cos(particle*t/2)**2)/dim
             if outcome==1:
-                DU+=t/4*np.sin(particle*t/2)*np.cos(particle*t/2)/f
+                DU+=t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)/f
             if outcome==0:
-                DU+=-t/4*np.sin(particle*t/2)*np.cos(particle*t/2)/(1-f)
+                DU+=-t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)/(1-f)
     return(DU)
 
 def test_differentiation():
@@ -586,34 +586,7 @@ def plot_distribution(distribution, real_parameters, note=""):
     note: str, optional
         Some string to be appended to the graph title (Default is ""). 
     '''
-    global first_plot_distribution
-    
-    if dim==1:
-        keys = list(distribution.keys())
-        particles = [np.frombuffer(key,dtype='float64')[0] for key in keys]
-        
-        fig, axs = plt.subplots(1,figsize=(8,8))
-        plt.ylim([lbound[0],rbound[0]])
-        plt.title("1-d particle distribution %s" % (note))
-        plt.xlabel("Particle index (for visualization, not identification)")
-        plt.ylabel("Parameter value")
-        
-        particle_enum = list(enumerate(particles))
-        particle_indexes = [pair[0] for pair in particle_enum]
-        particle_locations = [pair[1] for pair in particle_enum]
-        
-        weights = [distribution[key]*200 for key in keys]
-        axs.scatter(particle_indexes,particle_locations,s=weights)
-        
-        return
-    
-    if dim%2!=0:
-        if first_plot_distribution is True:
-            print("> Dimension is odd, cannot combine parameters pairwise; one"
-                  " will be left out of the plots.[plot_distribution]")
-    first_plot_distribution = False
     n_graphs = dim//2
-    
     for i in range(n_graphs):
         keys = list(distribution.keys())
         particles = [np.frombuffer(key,dtype='float64') for key in keys]
@@ -635,6 +608,36 @@ def plot_distribution(distribution, real_parameters, note=""):
         x2 = [particle[i+1] for particle in particles]
         weights = [distribution[key]*200 for key in keys]
         axs.scatter(x1, x2, marker='o',s=weights)
+        
+    if dim%2!=0:
+        # The last, unpaired dimension will be plotted alone with indexes as x
+        #values.
+        global first_plot_distribution
+        if first_plot_distribution is True:
+            print("> Dimension is odd, cannot combine parameters pairwise; one"
+                  " will be plotted alone.[plot_distribution]")
+        first_plot_distribution = False
+        
+        d = dim-1 
+        keys = list(distribution.keys())
+        particles = [np.frombuffer(key,dtype='float64')[d] for key in keys]
+        targets = real_parameters
+        
+        fig, axs = plt.subplots(1,figsize=(8,8))
+        plt.ylim([lbound[d],rbound[d]])
+        plt.title("Dimension %d %s" % (d,note))
+        plt.xlabel("Particle index (for visualization, not identification)")
+        plt.ylabel("Parameter number %d" % (d))
+        
+        particle_enum = list(enumerate(particles))
+        particle_indexes = [pair[0] for pair in particle_enum]
+        particle_locations = [pair[1] for pair in particle_enum]
+        
+        weights = [distribution[key]*200 for key in keys]
+        axs.scatter(particle_indexes,particle_locations,s=weights)
+ 
+        [axs.axhline(y=target, color='r',linewidth=0.75,linestyle="dashed") 
+         for target in targets] 
         
 def generate_prior(distribution_type="uniform"):    
     '''
@@ -857,9 +860,9 @@ def main():
         real_parameters = np.array([0.25,0.77]) 
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    steps = 200
+    measurements = 200
     t_max = 100
-    ts = [t_max*random.random() for k in range(steps)] 
+    ts = [t_max*random.random() for k in range(measurements)] 
     data=[(t,measure(t)) for t in ts]
     print("Offline estimation: random times <= %d" % t_max)
     
