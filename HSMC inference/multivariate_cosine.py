@@ -510,8 +510,12 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
         
         # Check for singularity (the covariance matrix must be invertible).
         if (np.linalg.det(Cov) == 0): 
-            print("> The covariance matrix must be invertible. [bayes_update]")
-            return
+            print("\n> The covariance matrix must be invertible, but it is\n%s"
+                  "\n...As such, the updating process has been interrupted."
+                  " [bayes_update]" % Cov)
+            if signal_resampling:
+                return distribution, None # Resampling interrupted midway.
+            return distribution
     
         Cov_inv = np.linalg.inv(Cov)
     
@@ -594,14 +598,7 @@ def plot_distribution(distribution, real_parameters, note=""):
     note: str, optional
         Some string to be appended to the graph title (Default is ""). 
     '''
-    global first_plot_distribution
-    if dim%2!=0:
-        if first_plot_distribution is True:
-            print("> Dimension is odd, cannot combine parameters pairwise; one"
-                  " will be left out of the plots.[plot_distribution]")
-    first_plot_distribution = False
     n_graphs = dim//2
-    
     for i in range(n_graphs):
         keys = list(distribution.keys())
         particles = [np.frombuffer(key,dtype='float64') for key in keys]
@@ -622,6 +619,36 @@ def plot_distribution(distribution, real_parameters, note=""):
         x2 = [particle[i+1] for particle in particles]
         weights = [distribution[key]*200 for key in keys]
         axs.scatter(x1, x2, marker='o',s=weights)
+        
+    if dim%2!=0:
+        # The last, unpaired dimension will be plotted alone with indexes as x
+        #values.
+        global first_plot_distribution
+        if first_plot_distribution is True:
+            print("> Dimension is odd, cannot combine parameters pairwise; one"
+                  " will be plotted alone.[plot_distribution]")
+        first_plot_distribution = False
+        
+        d = dim-1 
+        keys = list(distribution.keys())
+        particles = [np.frombuffer(key,dtype='float64')[d] for key in keys]
+        targets = real_parameters
+        
+        fig, axs = plt.subplots(1,figsize=(8,8))
+        plt.ylim([lbound[d],rbound[d]])
+        plt.title("Dimension %d %s" % (d+1,note))
+        plt.xlabel("Particle index (for visualization, not identification)")
+        plt.ylabel("Parameter number %d" % (d))
+        
+        particle_enum = list(enumerate(particles))
+        particle_indexes = [pair[0] for pair in particle_enum]
+        particle_locations = [pair[1] for pair in particle_enum]
+        
+        weights = [distribution[key]*200 for key in keys]
+        axs.scatter(particle_indexes,particle_locations,s=weights)
+ 
+        axs.axhline(y=real_parameters[d], color='r',linewidth=0.75,
+                    linestyle="dashed") 
         
 def generate_prior(distribution_type="uniform"):    
     '''
@@ -808,7 +835,14 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
         distribution, resampled = bayes_update(data[0:((i+1)*chunksize)], new, 
-                              distribution, threshold, signal_resampling=True) 
+                              distribution, threshold, signal_resampling=True)
+        if resampled is None:
+            print("> Process interrupted at iteration %d due to non-invertible"
+                  " covariance matrix. [offline_estimation]" % i,end="")
+            if plot_all:
+                plot_distribution(distribution,real_parameters, 
+                  note="(interrupted; importance sampled but no Markov moves)")
+            break
         
         # Print up to 10 progress updates spaced evenly through the loop.
         if updates < 10:

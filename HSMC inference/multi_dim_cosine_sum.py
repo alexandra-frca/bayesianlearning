@@ -14,7 +14,7 @@ The particle positions are plotted.
 import itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
-dim = 2
+dim = 3
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
@@ -625,7 +625,7 @@ def plot_distribution(distribution, real_parameters, note=""):
         
         fig, axs = plt.subplots(1,figsize=(8,8))
         plt.ylim([lbound[d],rbound[d]])
-        plt.title("Dimension %d %s" % (d,note))
+        plt.title("Dimension %d %s" % (d+1,note))
         plt.xlabel("Particle index (for visualization, not identification)")
         plt.ylabel("Parameter number %d" % (d))
         
@@ -857,7 +857,7 @@ def main():
     if random_parameters:
         real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        real_parameters = np.array([0.25,0.77]) 
+        real_parameters = np.array([0.25,0.77, 0.42]) 
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
     measurements = 200
