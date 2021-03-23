@@ -77,9 +77,8 @@ def simulate_1(particle, t, d):
 
 def likelihood(data,particle):
     '''
-    Provides an estimate for the likelihood  P(D|test_f,t) of x-spin 
-    measurements yielding the input vector of data, given test parameters for  
-    the distribution. 
+    Provides an estimate for the likelihood  P(data|v,t) given a data record
+    and a vector of parameters v (the particle).
     
     Parameters
     ----------
@@ -104,7 +103,7 @@ def likelihood(data,particle):
 def target_U(data,particle):
     '''
     Evaluates the target "energy" associated to the joint likelihood of some 
-    vector  of data, given a set of parameters for the fixed form Hamiltonian. 
+    vector  of data, given a set of parameters. 
     
     Parameters
     ----------
@@ -126,8 +125,7 @@ def target_U(data,particle):
 def U_gradient(data,particle,autograd=False):
     '''
     Evaluates the gradient of the target "energy" associated to the likelihood 
-    at a time t seen as a probability density, given a set of parameters for         
-    the fixed form Hamiltonian. 
+    at a time t seen as a probability density, given a set of parameters. 
     
     Parameters
     ----------
@@ -152,12 +150,14 @@ def U_gradient(data,particle,autograd=False):
         DU = np.array(np.zeros(dim))
         for (t,outcome) in data:
             for d in range(dim):
+                arg = particle[d]*t/2
+                L1 = np.cos(particle[d]*t/2)**2
+                dL1 = -t*np.sin(arg)*np.cos(arg)
                 if outcome[d]==1:
-                    DU[d]+=(t*np.sin(particle[d]*t/2)*np.cos(particle[d]*t/2)/
-                         np.cos(particle[d]*t/2)**2)
+                    DU[d] -= dL1/L1
                 if outcome[d]==0:
-                    DU[d]+=(-t*np.sin(particle[d]*t/2)*np.cos(particle[d]*t/2)/
-                         np.sin(particle[d]*t/2)**2)
+                    L0,dL0 = 1-L1,-dL1
+                    DU[d] -= dL0/L0
     return(DU)
 
 def test_differentiation():
@@ -173,7 +173,7 @@ def test_differentiation():
     particle = np.array([random.random() for d in range(dim)])
     print("Autodiff: ", U_gradient(data,particle,autograd=True))
     print("Analytical: ",U_gradient(data,particle,autograd=False))
-    
+
 def gaussian(x, mu, sigma, normalize=False):
     '''
     Evaluates a gaussian function at a given point for some specified set of
@@ -638,7 +638,7 @@ def plot_distribution(distribution, real_parameters, note=""):
         plt.ylim([lbound[d],rbound[d]])
         plt.title("Dimension %d %s" % (d+1,note))
         plt.xlabel("Particle index (for visualization, not identification)")
-        plt.ylabel("Parameter number %d" % (d))
+        plt.ylabel("Parameter number %d" % (d+1))
         
         particle_enum = list(enumerate(particles))
         particle_indexes = [pair[0] for pair in particle_enum]

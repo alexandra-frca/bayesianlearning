@@ -72,9 +72,8 @@ def simulate_1(particle, t):
 
 def likelihood(data,particle):
     '''
-    Provides an estimate for the likelihood  P(D|test_f,t) of x-spin 
-    measurements yielding the input vector of data, given test parameters for  
-    the distribution. 
+    Provides an estimate for the likelihood  P(data|v,t) given a data record
+    and a vector of parameters v (the particle).
     
     Parameters
     ----------
@@ -98,7 +97,7 @@ def likelihood(data,particle):
 def target_U(data,particle):
     '''
     Evaluates the target "energy" associated to the joint likelihood of some 
-    vector  of data, given a set of parameters for the fixed form Hamiltonian. 
+    vector  of data, given a set of parameters. 
     
     Parameters
     ----------
@@ -120,8 +119,7 @@ def target_U(data,particle):
 def U_gradient(data,particle,autograd=False):
     '''
     Evaluates the gradient of the target "energy" associated to the likelihood 
-    at a time t seen as a probability density, given a set of parameters for         
-    the fixed form Hamiltonian. 
+    at a time t seen as a probability density, given a set of parameters. 
     
     Parameters
     ----------
@@ -145,11 +143,14 @@ def U_gradient(data,particle,autograd=False):
     else:
         DU = np.array(np.zeros(dim))
         for (t,outcome) in data:
-            f = np.sum(np.cos(particle*t/2)**2)/dim
+            arg = particle*t/2
+            L1 = np.sum(np.cos(arg)**2)/dim
+            dL1 = -t/dim*np.cos(arg)*np.sin(arg)
             if outcome==1:
-                DU+=t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)/f
+                DU -= dL1/L1
             if outcome==0:
-                DU+=-t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)/(1-f)
+                L0,dL0 = 1-L1,-dL1
+                DU -= dL0/L0
     return(DU)
 
 def test_differentiation():
@@ -627,7 +628,7 @@ def plot_distribution(distribution, real_parameters, note=""):
         plt.ylim([lbound[d],rbound[d]])
         plt.title("Dimension %d %s" % (d+1,note))
         plt.xlabel("Particle index (for visualization, not identification)")
-        plt.ylabel("Parameter number %d" % (d))
+        plt.ylabel("Parameter number %d" % (d+1))
         
         particle_enum = list(enumerate(particles))
         particle_indexes = [pair[0] for pair in particle_enum]
