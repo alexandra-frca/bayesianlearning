@@ -75,9 +75,8 @@ def simulate_1(particle, t):
 
 def likelihood(data,particle,coef=1):
     '''
-    Provides an estimate for the likelihood  P(D|test_f,t) of x-spin 
-    measurements yielding the input vector of data, given test parameters for  
-    the distribution. 
+    Provides an estimate for the likelihood  P(data|v,t) given a data record, a 
+    vector of parameters v and a time of choice t. 
     
     Parameters
     ----------
@@ -104,7 +103,7 @@ def likelihood(data,particle,coef=1):
 def target_U(data,particle,coef):
     '''
     Evaluates the target "energy" associated to the joint likelihood of some 
-    vector  of data, given a set of parameters for the fixed form Hamiltonian. 
+    vector  of data, given a set of parameters. 
     
     Parameters
     ----------
@@ -129,8 +128,7 @@ def target_U(data,particle,coef):
 def U_gradient(data,particle,coef,autograd=False):
     '''
     Evaluates the gradient of the target "energy" associated to the likelihood 
-    at a time t seen as a probability density, given a set of parameters for         
-    the fixed form Hamiltonian. 
+    at a time t seen as a probability density, given a set of parameters. 
     
     Parameters
     ----------
@@ -159,13 +157,10 @@ def U_gradient(data,particle,coef,autograd=False):
         for (t,outcome) in data:
             f = np.sum(np.cos(particle*t/2)**2)/dim
             if outcome==1:
-                DU+=(t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)
-                     *coef*(np.cos(particle*t/2)**2)**(coef-1)
-                     /f**coef)
+                DU+=coef*t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)/f
             if outcome==0:
-                DU+=(-t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)
-                     *coef*(np.sin(particle*t/2)**2)**(coef-1)
-                     /(1-f)**coef)
+                DU+=coef*(-t/dim*np.sin(particle*t/2)*np.cos(particle*t/2)
+                          /(1-f))
                      
     return(DU)
 
@@ -659,7 +654,7 @@ def plot_distribution(distribution, real_parameters, note=""):
         
         fig, axs = plt.subplots(1,figsize=(8,8))
         plt.ylim([lbound[d],rbound[d]])
-        plt.title("Dimension %d %s" % (d,note))
+        plt.title("Dimension %d %s" % (d+1,note))
         plt.xlabel("Particle index (for visualization, not identification)")
         plt.ylabel("Parameter number %d" % (d+1))
         
