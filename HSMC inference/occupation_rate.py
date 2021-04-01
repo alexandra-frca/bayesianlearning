@@ -29,7 +29,7 @@ def space_occupation(points,side,thr=0.1,inc=1,matrix_2d=False):
         if matrix_2d:
             # Have the matrix match the 2d plot for ease of comparison
             #(x-y vs. col-row, where x and row are considered dim=0 for each 
-            #case - so transpose and flip rows/x axis).
+            #case - so transpose and flip rows/y axis).
             rearranged_matrix = np.flip(M.T,axis=0) 
             print(rearranged_matrix)
     #print(r)
