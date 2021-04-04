@@ -3,11 +3,9 @@
 Performs inference on the frequencies of a multi-parameter binomial probability
 distribution with success probability given by a sum of squared cosines: 
 sum_i [ cos(theta_i*t/2)^2 ].
-
 A sequential Monte Carlo approximation is used to represent the probability 
 distributions, using Hamiltonian Monte Carlo and Metropolis-Hastings mutation 
 steps.
-
 The particle positions are plotted.
 """
 
@@ -350,7 +348,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
         
 first_hamiltonian_MC_step = True
 def hamiltonian_MC_step(data, particle, 
-                        M=np.identity(dim), L=10, eta=0.01, threshold=0.1):
+                       M=np.identity(dim), L=10, eta=0.01, s=0.1,threshold=0.1):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
     
@@ -370,8 +368,12 @@ def hamiltonian_MC_step(data, particle,
         The amount of integration steps to be used when simulating the 
         Hamiltonian dynamics (a HMC tuning parameter) (Default is 10).
     eta: float, optional
-        The integration stepsize to be used when simulating the Hamiltonian 
+        The mean integration stepsize to be used when simulating the Hamiltonian 
         dynamics (a HMC tuning parameter) (Default is 0.01).
+    s: float, optional
+        Some standard deviation by which to perturb the stepsize, which will be
+        drawn from a normal distribution with mean `eta` and variance 
+        (`s`*`eta`)^2 (Default is 0.1).
     threshold: float, optional
         The highest HMC acceptance rate that should trigger a Metropolis-
         -Hastings mutation step (as an alternative to a  HMC mutation step) 
@@ -390,7 +392,7 @@ def hamiltonian_MC_step(data, particle,
                 mass = "Cov^-1"
             else:
                 mass = "I"
-            print("HMC: %s, L=%d, eta=%.10f" % (mass,L,eta))
+            print("HMC: %s, L=%d, eta=%.10f*N(1,s=%f)" % (mass,L,eta,s))
             first_hamiltonian_MC_step = False
             
         global total_HMC, accepted_HMC, total_MH, accepted_MH
@@ -405,6 +407,8 @@ def hamiltonian_MC_step(data, particle,
     #integration is too inaccurate for a given set of parameters and experiment
     #controls (which tends to happen close to or at the assymptotes of the log-
     #-likelihood).
+
+    eta = eta*np.random.normal(1,scale=s)
     
     if (p < threshold):
         MH = True
@@ -867,7 +871,7 @@ def main():
     data=[(t,measure(t)) for t in ts]
     print("Offline estimation: random times <= %d" % t_max)
     
-    test_resampling, test_no_resampling = True, True
+    test_resampling, test_no_resampling = True, False
     
     if test_no_resampling: # Just for reference.
         N_particles = 20**dim
@@ -881,11 +885,11 @@ def main():
         global first_bayes_update, first_offline_estimation
         first_bayes_update, first_offline_estimation = True, True
 
-        groups = 1 # The algorithm will be ran independently for `groups`
+        groups = 5 # The algorithm will be ran independently for `groups`
         #particle groups, on the same data. Their results will be joined 
         #together in the end.
         
-        N_particles = 20**dim # For each group. Should be a power with integer
+        N_particles = 15**dim # For each group. Should be a power with integer
         #base and exponent `dim` so the particles can be neatly arranged into a
         #cubic latice for the prior (unless not using a uniform distribution).
         prior = generate_prior(distribution_type="uniform")
