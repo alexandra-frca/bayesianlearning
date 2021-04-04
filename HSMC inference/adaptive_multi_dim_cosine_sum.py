@@ -733,7 +733,7 @@ def print_stats():
                                   (N_particles**(1/dim),dim,measurements,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
-      print("* Total resampler calls:  %d." 
+      print("* Total resampler calls (average per group):  %d." 
             % ((total_HMC+total_MH)/N_particles))
       print("* Percentage of HMC steps:  %.1f%%." 
             % (100*total_HMC/(total_HMC+total_MH)))
@@ -1031,9 +1031,10 @@ def space_occupation(points,side=50,thr=0.1):
         cell = tuple(int(point[i]//cell_width) for i in range(dim))
         occ.add(cell)
     r = len(occ)/ncells
-    if len(occ)<=thr*N_particles: # At least 10% of particles in different cells.
-        # Fine grain cells further to get a better estimate (occupation ratio 
-        #will tend to be smaller).
+    if len(occ)<=thr*N_particles: 
+        # If not at least thr% of particles in different cells, fine grain cells 
+        #further to get a better estimate (occupation ratio will tend to be 
+        #smaller).
         space_occupation(points,side=2*side)
     return r
 
@@ -1059,7 +1060,7 @@ def main():
     test_resampling, test_no_resampling = True, False
     
     if test_resampling:
-        groups = 1 # The algorithm will be ran independently for `groups`
+        groups = 5 # The algorithm will be ran independently for `groups`
         #particle groups, on the same data. Their results will be joined 
         #together in the end.
         
