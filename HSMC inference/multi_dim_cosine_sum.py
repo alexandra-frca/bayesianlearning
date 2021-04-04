@@ -12,7 +12,7 @@ The particle positions are plotted.
 import itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
-dim = 3
+dim = 2
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
@@ -716,7 +716,7 @@ def print_stats():
                                   (N_particles**(1/dim),dim,measurements,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
-      print("* Total resampler calls:  %d." 
+      print("* Total resampler calls (average per group):  %d." 
             % ((total_HMC+total_MH)/N_particles))
       print("* Percentage of HMC steps:  %.1f%%." 
             % (100*total_HMC/(total_HMC+total_MH)))
@@ -795,7 +795,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
     '''
     global first_offline_estimation
     if first_offline_estimation is True:
-        print("Estimation: data chunksize = ", chunksize)
+        print("Offline estimation: data chunksize = ", chunksize)
         first_offline_estimation = False
     
     if len(data)==0:
@@ -862,10 +862,10 @@ def main():
     if random_parameters:
         real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        real_parameters = np.array([0.25,0.77, 0.42]) 
+        real_parameters = np.array([0.25,0.77]) 
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    measurements = 200
+    measurements = 100
     t_max = 100
     ts = [t_max*random.random() for k in range(measurements)] 
     data=[(t,measure(t)) for t in ts]
@@ -898,11 +898,11 @@ def main():
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
             final_dists.append(offline_estimation(prior.copy(),data,
-                          threshold=100, chunksize=50,plot_all=True))
+                          threshold=100, chunksize=1,plot_all=False))
             
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
-        #plot_distribution(final_dist,real_parameters)
+        plot_distribution(final_dist,real_parameters)
 
     print_stats()
     
