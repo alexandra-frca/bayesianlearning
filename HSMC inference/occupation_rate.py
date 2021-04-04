@@ -10,14 +10,18 @@ import random
 dim = 2
 N_particles = 100
 
-def cell_dict(ncells):
+def cell_matrix(ncells):
+    # Kills RAM
     mdim = np.array([ncells for d in range(dim)])
     m = np.zeros(mdim)
     return m
 
-def space_occupation(points,side,thr=0.1,inc=1,matrix_2d=False):
+def space_occupation_matrix(points,side,thr=0.1,matrix_2d=False):
+    '''
+    Just for checking results, scales very poorly due to the sparse matrix
+    '''
     ncells = side**dim
-    M = cell_dict(ncells)
+    M = cell_matrix(ncells)
     cell_width = 1/side
     for point in points:
         cell = tuple(int(point[i]//cell_width) for i in range(dim))
@@ -32,12 +36,27 @@ def space_occupation(points,side,thr=0.1,inc=1,matrix_2d=False):
             #case - so transpose and flip rows/y axis).
             rearranged_matrix = np.flip(M.T,axis=0) 
             print(rearranged_matrix)
-    #print(r)
+    print(r)
     if occ<=thr*N_particles: # At least 10% of particles in different cells.
         # Fine grain cells further to get a better estimate (occupation ratio 
         #will tend to be smaller).
-        space_occupation(points,side+inc)
+        space_occupation(points,side*2)
     
+    return r
+
+def space_occupation(points,side,thr=0.1):
+    ncells = side**dim
+    occ = set()
+    cell_width = 1/side
+    for point in points:
+        cell = tuple(int(point[i]//cell_width) for i in range(dim))
+        occ.add(cell)
+    r = len(occ)/ncells
+    print(r)
+    if len(occ)<=thr*N_particles: # At least 10% of particles in different cells.
+        # Fine grain cells further to get a better estimate (occupation ratio 
+        #will tend to be smaller).
+        space_occupation(points,side*2)
     return r
         
 def grid_and_scatter(points, side):
@@ -56,8 +75,9 @@ def grid_and_scatter(points, side):
     [axs.axvline(x=vline, color='r',linewidth=0.75,linestyle="dashed") 
              for vline in vlines] 
 
-min,max=0,0.5
+min,max=0,0.1
 samples = [np.array([random.uniform(min,max) for i in range(dim)]) 
            for j in range(N_particles)]
-side = 2
+side = 5
+space_occupation_matrix(samples,side)
 space_occupation(samples,side)
