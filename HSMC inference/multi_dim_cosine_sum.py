@@ -327,9 +327,8 @@ def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
                 new_particle[i] = right_constraints[i]-\
                     (new_particle[i]-right_constraints[i])
                 new_momentum[i] = -new_momentum[i]
-
+        DU = U_gradient(data,new_particle)
         if (l != L-1):
-            DU = U_gradient(data,new_particle)
             new_momentum = np.add(new_momentum,-eta*DU)     
     new_momentum = np.add(new_momentum,-0.5*eta*DU)
     
@@ -805,7 +804,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
         threshold = N_particles/2
         
     ans=""; resampled=False; counter=0; print("|0%",end="|")
-    updates = len(data)//chunksize+1
+    updates = len(data)//chunksize
     if updates < 10:
         progress_interval = 100/updates
     for i in range(updates):
