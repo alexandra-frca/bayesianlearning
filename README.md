@@ -9,5 +9,6 @@ The **Precession frequency estimation** folder contains implementations of the e
 
 The **Sampling methods** folder contains implementations of several Monte Carlo sampling algorithms for 3 target probability densities (a Rosenbrock function, a 6-dimensional gaussian, and a smiley face kernel density estimate).
 
+The **Subsampling I - Stochastic gradient H(S)MC** folder implements Hamiltonian dynamics based algorithms accounting for noisy gradients (e.g. from subsampling).
 
 The **Tempered likelihood HSMC inference** folder contains the application of tempered/annealed Hamiltonian sequential Monte Carlo to the characterization of multi-parameter probabilistic functions.
