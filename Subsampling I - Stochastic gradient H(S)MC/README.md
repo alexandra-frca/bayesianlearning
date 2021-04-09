@@ -1,4 +1,4 @@
-Some exercises based on Stochastic Gradient Hamiltonian Monte Carlo[https://arxiv.org/pdf/1402.4102.pdf].
+Some exercises based on [Stochastic Gradient Hamiltonian Monte Carlo](https://arxiv.org/pdf/1402.4102.pdf).
 
 The file `SG-HMC_oscillator` simulates Hamiltonian dynamics with injected noise, both correcting and not for it by introducing friction (inspired on the Langevin equation).
 
