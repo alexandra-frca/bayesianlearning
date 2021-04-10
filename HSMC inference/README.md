@@ -10,4 +10,4 @@ The file `ocupation_rate.py` calculates the parameter space occupation rate - as
 
 The file `adaptive_multi_dim_cosine_sum.py` uses the space occupation construction to choose the measurement times adaptively (as opposed to picking them randomly and offline as in `multi_dim_cosine_sum.py`).
 
-The file `incremental_multi_dim_cosine_sum.py` performs offline inference while tendentially increasing the evolution times, loosely reproducing the trend of the adaptive strategy. 
+The file `incremental_multi_dim_cosine_sum.py` performs offline inference while tendentially increasing the evolution times, adapting the inference process of `multi_dim_cosine_sum.py` to loosely reproduce the trend of the adaptive strategy. 
