@@ -326,8 +326,8 @@ def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta,
         #prior.
             new_particle = right_constraint-(new_particle-right_constraint)
             new_momentum = -new_momentum
+        DU = U_gradient(data,new_particle)
         if (l != L-1):
-            DU = U_gradient(data,new_particle)
             new_particle = new_particle - eta*DU
     new_momentum = new_momentum - 0.5*eta*DU
 

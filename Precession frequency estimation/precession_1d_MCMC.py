@@ -28,13 +28,13 @@ total_MH, accepted_MH = 0, 0
 N_particles = 1 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
-f_real = 0 # The actual precession frequency we mean to estimate.
+f_real = 0.5 # The actual precession frequency we mean to estimate.
 
 alpha_real = 0 # The decay factor (the inverse of the coherence time).
 
 f_min, f_max = 0,10 # The limits for the prior.
 
-f_real = 0.5
+
 
 def measure(t, alpha=alpha_real, tries=1):
     '''
@@ -443,12 +443,12 @@ def offline_estimation(point, f_max, measurements, steps, increment=0.08):
     data = [(t,measure(t)) for t in ts]
     
     trajectory, proposals = [point],["Starting point"]
-    print(point)
+    #print(point)
     for i in range(steps):
         point, proposal = hamiltonian_MC_step(data,point)
         trajectory.append(point)
         proposals.append(proposal)
-        print(point,proposal)
+        #print(point,proposal)
     plot_likelihood(data,points=trajectory, point_types=proposals)
     return point
 

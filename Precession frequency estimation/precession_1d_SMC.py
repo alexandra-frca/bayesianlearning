@@ -439,8 +439,8 @@ def main():
     for f in fs:
         prior[f] = 1/N_particles # We consider a flat prior up to f_max.
     
-    runs=1
-    steps = 100
+    runs=10
+    steps = 30
     adapt_runs, off_runs = [], []
     adapt_errors, off_errors = [], []
     adapt_mses, off_mses = [], []
