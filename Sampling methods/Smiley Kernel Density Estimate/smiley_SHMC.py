@@ -52,8 +52,8 @@ def simulate_dynamics(initial_momentum, initial_point, L, eta):
     new_momentum = np.add(initial_momentum,-0.5*eta*DU)
     for l in range(L):
         new_point = np.add(new_point,eta*new_momentum)
+        DU = U_gradient(new_point)
         if (l != L-1):
-            DU = U_gradient(new_point)
             new_momentum = np.add(new_momentum,-eta*DU)     
     new_momentum = np.add(new_momentum,-0.5*eta*DU)
     new_momentum = -new_momentum 
