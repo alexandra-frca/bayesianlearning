@@ -18,7 +18,7 @@ The particle positions are plotted.
 import itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
-dim = 1
+dim = 4
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
@@ -347,8 +347,8 @@ def simulate_dynamics(data, coef, initial_momentum, initial_particle, M,L,eta,
                     (new_particle[i]-right_constraints[i])
                 new_momentum[i] = -new_momentum[i]
 
+        DU = U_gradient(data,new_particle,coef)
         if (l != L-1):
-            DU = U_gradient(data,new_particle,coef)
             new_momentum = np.add(new_momentum,-eta*DU)     
     new_momentum = np.add(new_momentum,-0.5*eta*DU)
     
@@ -670,7 +670,12 @@ def plot_distribution(distribution, real_parameters, note=""):
         
 def generate_prior(distribution_type="uniform"):    
     '''
-    Creates a uniform discrete distribution on some region.
+    Creates a uniform, random (and assymptotically uniform), or (assymptotically) 
+    gaussian discrete distribution on some region.
+    Note that for SMC to actually be considering a non-uniform prior, the code 
+    should be changed to accomodate that (i.e. it affects the likelihood, log-
+    likelihood and log-likelihood gradient in ways that aren't cancelled out
+    by virtue of the effect being identical for all particles).
     
     Parameters
     ----------
@@ -873,7 +878,7 @@ def main():
         #real_parameters = np.array([0.25,0.77]) 
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    measurements = 30
+    measurements = 250
     steps = 5
     coefs = [i/steps for i in range(steps+1)] # These coefficients could be
     #chosen adaptively to keep the effective sample size near some target value
@@ -889,7 +894,7 @@ def main():
     test_resampling, test_no_resampling = True, True
     
     if test_no_resampling: # Just for reference.
-        N_particles = 20**dim
+        N_particles = 12**dim
         prior = generate_prior(distribution_type="uniform")
         dist_no_resampling = offline_estimation(prior.copy(),data,coefs,
                                                 threshold=0,plot_all=False)
@@ -905,7 +910,7 @@ def main():
         #particle groups, on the same data. Their results will be joined 
         #together in the end.
         
-        N_particles = 15**dim # For each group. Should be a power with integer
+        N_particles = 12**dim # For each group. Should be a power with integer
         #base and exponent `dim` so the particles can be neatly arranged into a
         #cubic latice for the prior (unless not using a uniform distribution).
         prior = generate_prior(distribution_type="uniform")
