@@ -39,8 +39,8 @@ def simulate_dynamics(noisy=False,initial_point=np.array(start), L=500, eta=0.1)
         new_point = np.add(new_point,eta*new_momentum)
         path.append((new_point,new_momentum)) # Leave out firts and last points
         #(not in "trajectory" yet and mismatched steps resp.)
+        DU = U_gradient(new_point,noisy)
         if (l != L-1):
-            DU = U_gradient(new_point,noisy)
             new_momentum = np.add(new_momentum,-eta*DU)   
             
     DU = U_gradient(new_point,noisy)
