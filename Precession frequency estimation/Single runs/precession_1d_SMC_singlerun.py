@@ -18,7 +18,7 @@ import random, numpy as np, matplotlib.pyplot as plt
 N_particles = 100 # Number of samples used to represent the probability
 #distribution, using a sequential Monte Carlo approximation.
 
-f_real = 8 # The actual precession frequency we mean to estimate 
+f_real = 2 # The actual precession frequency we mean to estimate 
 #(will be picked at random for each run).
 
 alpha_real = 0 # The decay factor (the inverse of the coherence time)
@@ -435,7 +435,7 @@ def main():
     for f in fs:
         prior[f] = 1/N_particles # We consider a flat prior up to f_max.
     
-    steps = 50
+    steps = 30
     
     adapt_means, adapt_stdevs, adapt_times = \
         adaptive_estimation(prior.copy(),steps)
@@ -449,24 +449,26 @@ def main():
           (offline_means[steps-1], offline_stdevs[steps-1], 
            abs(offline_means[steps-1]-f_real)))
     
-    fig, axs = plt.subplots(2,figsize=(8,8))
-    
+    fig, axs = plt.subplots(1,figsize=(12,8))
+    '''
     ax = np.array([i for i in range(len(adapt_means))])
     ay = np.array(adapt_means)
     ae = np.array(adapt_stdevs)
     axs[0].errorbar(ax, ay, ae, linestyle='None', marker='.', capsize=3)
     axs[0].axhline(y=f_real, color='r', linestyle='-')
     axs[0].set_title('Adaptive estimation')
+    '''
     
     ox = np.array([i for i in range(len(offline_means))])
     oy = np.array(offline_means)
     oe = np.array(offline_stdevs)
-    axs[1].errorbar(ox, oy, oe, linestyle='None', marker='.', capsize=3)
-    axs[1].axhline(y=f_real, color='r', linestyle='-')
-    axs[1].set_title('Offline estimation')
-    
+    axs.errorbar(ox, oy, oe, linestyle='None', marker='.', capsize=3)
+    axs.axhline(y=f_real, color='r', linestyle='-')
+    axs.set_title('Offline estimation')
+    '''
     fig.subplots_adjust(hspace=0.8)
     for ax in axs.flat:
         ax.set(xlabel='Iteration number', ylabel='Estimated frequency')
+    '''
     
 main()
