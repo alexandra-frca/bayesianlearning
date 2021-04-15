@@ -904,7 +904,8 @@ def print_stats():
     Prints some relevant information relative to the run of the algorithm on
     the console.
     '''
-    print("> n=%.2f^%d; N=%d; %dd sum of squared cosines" % 
+    print(("> n=%.2f^%d; N=%d; %dd sum of squared cosines"\ 
+                           + "(possibly with subsampling, SG-H(S)MC)") % 
                           (N_particles**(1/dim),dim,measurements,dim))
     
     if (total_HMC != 0) or (total_MH != 0):
