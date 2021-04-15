@@ -22,6 +22,9 @@ tempering coefficients.
 The particle positions are plotted, as well as kernel density estimates for the 
 final full data and subsampling distributions if both strategies are performed
 and the parameter vector is one-dimensional.
+
+Based on "Stochastic Gradient Hamiltonian Monte Carlo"
+[https://arxiv.org/pdf/1402.4102.pdf]
 """
 
 import itertools, random, matplotlib.pyplot as plt

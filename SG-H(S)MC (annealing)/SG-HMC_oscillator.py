@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Implementation of the Metropolis-Hastings and Hamiltonian Monte Carlo 
-algorithms for sampling from the density given by a Rosenbrock function.
+Simulation of Hamiltonian dynamics for an oscillator with potential energy 
+U=0.5*x^2, with x the position coordinate.
+
+The state-space trajectories are plotted for the correct dynamics, the dynamics 
+with a noisy gradient, and the dynamics with a noisy gradient and friction (to
+counter the noise and improve convergence).
+
+Based on "Stochastic Gradient Hamiltonian Monte Carlo"
+[https://arxiv.org/pdf/1402.4102.pdf]
 """
 import matplotlib.pyplot as plt
 from autograd import grad, numpy as np
