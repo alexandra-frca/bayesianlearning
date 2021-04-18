@@ -41,7 +41,7 @@ annealing coefficients.
 Estimators are used for the likelihood, optionally using control variates 
 (though they are Taylor approximation based and only work under unimodality,
 and so aren't suitable for the chosen target if the parameter vector dimension 
-is >=2 unless its components aren't by the model's construction all the same).
+is >=2 unless its components are by the model's construction all the same).
 
 The particle positions are plotted, as well as kernel density estimates for the 
 final full data and subsampling distributions if both strategies are performed
