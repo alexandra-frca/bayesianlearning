@@ -45,19 +45,20 @@ and "Subsampling Sequential Monte Carlo for Static Bayesian Models"
 [https://arxiv.org/pdf/1805.03317.pdf]
 """
 
-import importlib, sys
+import importlib, sys, copy
 import random, numpy as np
 import global_vars as glob
-from function_evaluations.likelihoods import measure, likelihood
+from function_evaluations.likelihoods import measure, likelihood, \
+    init_likelihoods
 from function_evaluations.estimators import Taylor_coefs,likelihood_estimator
 from tools.resampler import init_resampler, HMC_resampler, \
     print_resampler_stats
 from tools.statistics import SMCparameters, print_info, plot_kdes
 from tools.distributions import plot_particles, generate_prior, \
-    sum_distributions
+    sum_distributions, init_distributions
 #np.seterr(all='warn')
 
-reload = True
+reload = False
 if reload:
     importlib.reload(sys.modules["global_vars"])
     importlib.reload(sys.modules["function_evaluations.likelihoods"])
@@ -135,12 +136,12 @@ def bayes_update(data, distribution, coef, previous_coef, threshold,
             L = likelihood_estimator(data,particle,[coef,previous_coef],u,mean,
                                      Tcoefs,control_variates=control_variates)
         else: 
-            L = likelihood(data,particle,coef=coef-previous_coef,)
+            L = likelihood(data,particle,coef=coef-previous_coef)
             
         new_weight = L*weight
         distribution[key][0] = new_weight
         acc_weight += new_weight
-        
+
     if acc_weight==0:
         print("> All zero weights after update. [bayes_update]")
         
@@ -167,9 +168,9 @@ def bayes_update(data, distribution, coef, previous_coef, threshold,
     return distribution
 
 first_offline_estimation = True
-def offline_estimation(distribution, data, tempering_coefficients, 
-        threshold=None, subsample=False, control_variates=True, 
-        plot_all=False):
+def offline_estimation(distribution, measurements, tmax , 
+                       tempering_coefficients, threshold=None, subsample=False,
+                       control_variates=True, plot_all=False):
     '''
     Estimates the vector of parameters by defining a set of experiments (times)
     , performing them, and updating a given prior distribution according to the
@@ -181,11 +182,12 @@ def offline_estimation(distribution, data, tempering_coefficients,
         , with (key,value):=(particle,importance weight) 
         , and particle the parameter vector (as a bit string)
         The prior distribution (SMC approximation).
-    data: [([float],int)]
-        A vector of experimental results obtained so far and their respective 
-        controls, each datum being of the form (time,outcome), where 'time' is          
-        the control used for each experiment and 'outcome' is its result.
-    coef: float
+    measurements: int
+        The number of measurements/experiment to be performed.
+    tmax: float
+        The maximum measurement time to be used; each actual time will be 
+        chosen at random between 0 to this value.
+    tempering_coefficients: float
         The sequence of tempering coefficients to be used in computing the 
         annealed likelihoods.
     threshold: float, optional
@@ -212,11 +214,13 @@ def offline_estimation(distribution, data, tempering_coefficients,
     N_particles, real_parameters, measurements, samples = \
         glob.N_particles, glob.real_parameters, glob.measurements, glob.samples
         
-    if len(data)==0 or len(tempering_coefficients)==0:
+    if measurements==0 or len(tempering_coefficients)==0:
         return
         
     global first_offline_estimation
     if first_offline_estimation is True:
+        print("Offline estimation: random times <= %d" % tmax)
+        print("Tempering coefficients: ",tempering_coefficients)
         cv = "(with control variates)." if control_variates else \
             "(without control variates)."
         info = ("subsampling %d/%d observations " % (samples,measurements))\
@@ -226,6 +230,9 @@ def offline_estimation(distribution, data, tempering_coefficients,
     
     if threshold is None:
         threshold = N_particles/2
+        
+    ts = [tmax*random.random() for k in range(measurements)] 
+    data=[(t,measure(t)) for t in ts]
         
     ans=""; resampled=False; counter=0; print("|0%",end="|")
     updates = len(tempering_coefficients)-1
@@ -271,6 +278,7 @@ def offline_estimation(distribution, data, tempering_coefficients,
     return distribution
 
 def main():
+    global first_bayes_update, first_offline_estimation
     dim = glob.dim
     random_parameters = False
     if random_parameters:
@@ -282,27 +290,26 @@ def main():
         #glob.real_parameters = np.array([0.25,0.77,0.40,0.52])
     
     glob.measurements = 100
-    glob.samples=20
+    glob.samples = 20
     # For ease of use since we don't want to change these variables anymore:
     real_parameters, measurements, samples = \
         glob.real_parameters, glob.measurements, glob.samples
-    init_resampler() # For the global statistics.
+        
+    # To initialize some constants (for printing information on the console):
+    init_distributions() 
+    init_likelihoods()
+    init_resampler() # Also for the global statistics.
     
-    steps = 5
+    steps = 1
     coefs = [i/steps for i in range(steps+1)] # These coefficients could be
     #chosen adaptively to keep the effective sample size near some target value
     #, but evenly spaced coefficients seem to work well for this problem and 
     #don't require extra Bayes updates. 
     #coefs=coefs[0:2]
 
-    t_max = 100 # If t_max is too large, subsampling works poorly (because the
+    tmax = 100 # If tmax is too large, subsampling works poorly (because the
     #likelihood is too sharp, the derivatives too large, and the approximations
     #and estimators very off-target).
-    
-    ts = [t_max*random.random() for k in range(measurements)] 
-    data=[(t,measure(t)) for t in ts]
-    print("Offline estimation: random times <= %d" % t_max)
-    print("Tempering coefficients: ",coefs)
     
     test_resampling, test_no_resampling = True, False
     test_subsampling, test_no_resampling_subsampling = True, False
@@ -315,22 +322,22 @@ def main():
     ngroups = 1
     
     if test_no_resampling: # Just for reference.
-        dist_no_resampling = offline_estimation(prior.copy(),data,coefs,
-                                                threshold=0,plot_all=False)
+        dist_no_resampling = offline_estimation(copy.deepcopy(prior),
+                         measurements, tmax, coefs,threshold=0,plot_all=False)
         plot_particles(dist_no_resampling,real_parameters,
                           note="(no resampling)")
         print("> No resampling test completed.")
         
     if test_no_resampling_subsampling: 
-        dist_no_resampling_subs = offline_estimation(prior.copy(),data,coefs,
-                                    threshold=0,subsample=True,plot_all=False)
+        dist_no_resampling_subs = offline_estimation(copy.deepcopy(prior),
+                                              coefs,threshold=0,
+                                              subsample=True,plot_all=False)
         plot_particles(dist_no_resampling_subs,real_parameters,
                     note=(" (no resampling; subsampled %d/%d observations)" 
                     % (samples,measurements)))
         print("> No resampling test with subsampling completed.")
     
     if test_resampling:
-        global first_bayes_update, first_offline_estimation
         first_bayes_update, first_offline_estimation = True, True
         
         print("> Testing full data HSMC...")
@@ -338,13 +345,11 @@ def main():
         groups = ngroups # The algorithm will be ran independently for `groups`
         #particle groups, on the same data. Their results will be joined 
         #together in the end.
-
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            final_dists.append(offline_estimation(prior.copy(),data,coefs,
-                         threshold=float('inf'),plot_all=False))
-            
+            final_dists.append(offline_estimation(copy.deepcopy(prior),
+              measurements,tmax, coefs,threshold=float('inf'),plot_all=False))
         # To get the correct statistics, get the total particles.
         if groups > 1:
             glob.N_particles = glob.N_particles*groups 
@@ -356,24 +361,40 @@ def main():
     if test_subsampling:
         print("> Testing subsampling...")
         first_bayes_update, first_offline_estimation = True, True
-        
-        groups = 1
+        groups = ngroups
         #glob.N_particles = 30**dim 
         #prior = generate_prior(distribution_type="uniform")
-        final_dists = []
+        warmup = False
+        dist = copy.deepcopy(prior)
+        if warmup:
+            # If using, adapt sequential weight updates to account for this
+            #when transitioning (estimator of all data)**(first real coef)
+            #dividing by (estimator of warm-up data)**(last warm up coef).
+            print("> Warming up...")
+            warmup_tmax = 1
+            #warmup_coefs = [0,0.2]
+            dist = offline_estimation(dist,measurements, warmup_tmax, coefs,
+                        threshold=float('inf'),subsample=True,plot_all=False)
+            first_bayes_update, first_offline_estimation = True, True
+            plot_particles(dist,real_parameters, 
+                          note=(" (subsampled %d/%d observations; warm-up)" % 
+                         (samples,measurements)))
+            
+        final_dists_subs = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            final_dists.append(offline_estimation(prior.copy(),data,coefs,
-                         threshold=float('inf'),subsample=True,plot_all=False))
-            
+            final_dists_subs.append(offline_estimation(dist,
+                        measurements, tmax, coefs,threshold=float('inf'),
+                        subsample=True,plot_all=False))
         if groups > 1:
             glob.N_particles = glob.N_particles*groups 
-            final_dist_subs = sum_distributions(final_dists)
+            final_dist_subs = sum_distributions(final_dists_subs)
         else:
-            final_dist_subs = final_dists[0]
+            final_dist_subs = final_dists_subs[0]
         plot_particles(final_dist_subs,real_parameters, 
                           note=(" (subsampled %d/%d observations)" % 
                          (samples,measurements)))
+        
     if dim==1 and test_resampling and test_subsampling:
         plot_kdes(final_dist,final_dist_subs,
                  labels=["Full data HSMC","Subsampling HSMC"])
