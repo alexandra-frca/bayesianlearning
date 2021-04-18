@@ -9,19 +9,31 @@ from function_evaluations.estimators import Taylor_coefs,likelihood_estimator,\
     loggradient_estimator
 from tools.statistics import gaussian, SMCparameters
 
+first_metropolis_hastings_step = True
+first_hamiltonian_MC_step = True
+first_pseudomarginal_MH = True
+
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
+total_u, accepted_u = 0, 0
 
 def init_resampler():
     '''
     Initializes some counters respecting the Markov transitions used by the 
-    resampler.
+    resampler, as well as some constants pertaining to the module.
     '''
-    global total_HMC, accepted_HMC, total_MH, accepted_MH
+    global first_hamiltonian_MC_step, first_metropolis_hastings_step, \
+        first_pseudomarginal_MH
+    first_hamiltonian_MC_step = True
+    first_metropolis_hastings_step = True
+    first_pseudomarginal_MH = True
+    
+    global total_HMC, accepted_HMC, total_MH, accepted_MH, total_u, accepted_u
     total_HMC, accepted_HMC = 0, 0
     total_MH, accepted_MH = 0, 0
+    total_u, accepted_u = 0, 0
     
-first_metropolis_hastings_step = True
+
 def metropolis_hastings_step(data, subs_info, particle, coef, 
                                  S=None, factor=0.01):
     '''
@@ -216,7 +228,6 @@ def simulate_dynamics(data,subs_info, coef, initial_momentum, initial_particle,
     '''
     return new_particle, p
         
-first_hamiltonian_MC_step = True
 def hamiltonian_MC_step(data, particle,coef,
                     M=None, L=10, eta=0.01, threshold=0.1,
                     subs_info=None):
@@ -310,7 +321,7 @@ def hamiltonian_MC_step(data, particle,coef,
         return(particle)
 
 def pseudomarginal_MH(data, particle, indices, coef, mean, Tcoefs,
-                      control_variates):
+                      control_variates, blocks=7):
     '''
     Picks the next subsampling indices (auxiliary variables in a pseudo-
     -marginal approach) by performing a Metropolis-Hastings transition. 
@@ -335,15 +346,42 @@ def pseudomarginal_MH(data, particle, indices, coef, mean, Tcoefs,
         The 0-th to 2nd order Taylor coefficients.
     control_variates: bool
         Whether to use control variates in the estimator.
+    blocks: int, optional
+        The number of blocks to split the subsampling indices into (Default is 
+        7). Of these, a random one will be updated (attributed new indices).
+        The purpose is to induce correlation between consecutive proposals,
+        thereby reducing the variability in their likelihood estimators and 
+        yielding a more robust acceptance ratio.
         
     Returns
     -------
     indices: [int]
         The (tempered) likelihood estimator.
     '''
+    global first_pseudomarginal_MH
+    if first_pseudomarginal_MH is True:
+        print(("Block pseudo marginal Metropolis-Hastings: %d blocks "
+               +"(induced correlation roughly %.1f%%)") % 
+              (blocks,(1-1/blocks)*100))
+        first_pseudomarginal_MH = False
+        
     measurements, samples = glob.measurements, glob.samples
-    new_indices = [random.randrange(0,measurements) for m in range(samples)]
-    
+    global total_u, accepted_u
+
+    # Choose the indices of the subsampling indices to be changed in the 
+    #proposal.
+    chosen_block = random.randrange(0,blocks)
+    block_length = samples//blocks
+    block_indices = [chosen_block*block_length+i for i in range(block_length)]
+    remaining = samples%blocks
+    if remaining!=0 and chosen_block==blocks-1:
+        # Append all leftover indices to last block.
+        block_indices.extend([blocks*block_length+i for i in range(remaining)])
+
+    new_indices = indices.copy()
+    for index in block_indices:
+        new_indices[index] = random.randrange(0,measurements)
+
     # Calculate the previous and new likelihood estimators for the acceptance
     #probability.
     prev_l = likelihood_estimator(data,particle,coef,indices,mean,Tcoefs,
@@ -351,8 +389,10 @@ def pseudomarginal_MH(data, particle, indices, coef, mean, Tcoefs,
     new_l = likelihood_estimator(data,particle,coef,new_indices,mean,Tcoefs,
                                  control_variates=control_variates)
     p = new_l/prev_l
+    total_u += 1
     a = min(1,p)
     if (np.random.rand() < a):
+        accepted_u += 1
         indices = new_indices
     return (indices)
 
@@ -505,5 +545,8 @@ def print_resampler_stats():
         print("* Hamiltonian Monte Carlo: %d%% mean particle acceptance rate." 
               % round(100*accepted_HMC/total_HMC))
     if (total_MH != 0):
-        print("* Metropolis-Hastings:     %d%% mean particle acceptance rate." 
+        print("* Metropolis-Hastings: %d%% mean particle acceptance rate." 
               % round(100*accepted_MH/total_MH))
+    if (total_u != 0):
+        print(("* Metropolis-Hastings (indices): %d%% mean particle acceptance"
+              +" rate.") % round(100*accepted_u/total_u))

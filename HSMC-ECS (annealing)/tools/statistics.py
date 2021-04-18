@@ -250,12 +250,14 @@ def plot_kdes(distribution,reference,labels):
     stdev = SMCparameters(distribution,stdev="corrected")[1]
     rstdev = SMCparameters(reference,stdev="corrected")[1]
     print("- Standard deviation (subsampling):",stdev)
-    print("- Reference (full data): %f\n[plot_kdes]" % rstdev)
+    print("- Reference (full data): ", rstdev)
+    avg_stdev = (stdev+rstdev)/2
+    print("[plot_kdes]")
     ks = dict_to_list(distribution)
     rks = dict_to_list(reference)
     xs = np.arange(0.77,0.83,0.001)
-    ys =  [weighted_kernel_density_estimate(x,ks,stdev) for x in xs]
-    rys = [weighted_kernel_density_estimate(x,rks,stdev) for x in xs]
+    ys =  [weighted_kernel_density_estimate(x,ks,avg_stdev) for x in xs]
+    rys = [weighted_kernel_density_estimate(x,rks,avg_stdev) for x in xs]
     
     fig, axs = plt.subplots(1,figsize=(8,8))
     axs.plot(xs,rys,color="black",linewidth=1,linestyle="dashed",
@@ -263,4 +265,3 @@ def plot_kdes(distribution,reference,labels):
     axs.plot(xs,ys,color="red",linewidth=1,label=labels[1])
     axs.set_title("Kernel density estimates")
     axs.legend(loc='upper left',fontsize=14)
-    

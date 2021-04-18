@@ -6,7 +6,15 @@ import itertools, random
 import numpy as np, matplotlib.pyplot as plt
 import global_vars as glob
 
-first_plot_distribution = True
+first_plot_particles = True
+
+def init_distributions():
+    '''
+    Initializes constants pertaining to the module.
+    '''
+    global first_plot_particles
+    first_plot_particles = True
+
 def plot_particles(distribution, real_parameters, note=""):
     '''
     Plots a discrete distribution, by scattering points as circles with 
@@ -52,11 +60,11 @@ def plot_particles(distribution, real_parameters, note=""):
     if dim%2!=0:
         # The last, unpaired dimension will be plotted alone with indices as x
         #values.
-        global first_plot_distribution
-        if first_plot_distribution is True:
+        global first_plot_particles
+        if first_plot_particles is True:
             print("> Dimension is odd, cannot combine parameters pairwise; one"
-                  " will be plotted alone.[plot_distribution]")
-        first_plot_distribution = False
+                  " will be plotted alone.[plot_particles]")
+        first_plot_particles = False
         
         d = dim-1 
         keys = list(distribution.keys())
@@ -79,7 +87,8 @@ def plot_particles(distribution, real_parameters, note=""):
         [axs.axhline(y=target, color='r',linewidth=0.75,linestyle="dashed") 
          for target in targets] 
         
-def generate_prior(distribution_type="uniform"):    
+def generate_prior(distribution_type = "uniform",
+                   uniform_limits = (0.7,0.9)):    
     '''
     Creates a uniform, random (and assymptotically uniform), or 
     (assymptotically) gaussian discrete distribution on some region.
@@ -93,6 +102,10 @@ def generate_prior(distribution_type="uniform"):
     distribution_type: str, optional
         The class of distribution to be used (should be uniform, random or 
         gaussian/normal)
+    uniform_limits: (float,float), optional
+        The left and right boundaries if the prior distribution is to be flat
+        (Default is (0.7,0.9)). These are assumed to be the same for every 
+        dimension/parameter.
         
     Returns
     -------
@@ -105,7 +118,9 @@ def generate_prior(distribution_type="uniform"):
 
     N_particles, measurements, samples, dim = \
         glob.N_particles, glob.measurements, glob.samples, glob.dim
-    lbound, rbound = glob.lbound, glob.rbound
+    lbound, rbound = np.array([uniform_limits[0] for d in range(dim)]),\
+        np.array([uniform_limits[1] for d in range(dim)])
+    #lbound, rbound =  glob.lbound, glob.rbound # To cover all space.
     if distribution_type=="uniform":
         # Number of particles along each dimension:
         each = int(glob.N_particles**(1/dim)) 
@@ -139,7 +154,10 @@ def generate_prior(distribution_type="uniform"):
         print("> `distribution_type` should be either uniform, random or "
               "gaussian. [generate_prior]")
         
-    print("[Generated %s prior distribution.]" % (distribution_type))
+    print("[Generated %s prior distribution" % (distribution_type),
+          end="")
+    extra_info_flat = " (between %.1f and %.1f)]." % uniform_limits
+    print(extra_info_flat if distribution_type=="uniform" else "].")
         
     # Convert list to dictionary with keys as particles and uniform weights
     #(the distribution is characterized by particle density).
