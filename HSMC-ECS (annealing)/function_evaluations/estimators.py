@@ -12,7 +12,8 @@ approximate the posterior location).
 
 This means that for the target function (a multi-parameter sum of squared 
 cosines), we must have either that dim=1 (single parameter case) or that the 
-parameter takes the same value along each dimension. 
+parameter takes the same value along each dimension (which must be built into
+the model). 
 
 If that is not the case, another choice of control variates must be used (or 
 none at all, leaving only the subsampled quantities).

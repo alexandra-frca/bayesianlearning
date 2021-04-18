@@ -6,6 +6,15 @@ from autograd import grad, numpy as np
 import random
 import global_vars as glob
 
+first_measure = True
+
+def init_likelihoods():
+    '''
+    Initializes constants pertaining to the module.
+    '''
+    global first_measure
+    first_measure = True
+
 def measure(t):
     '''
     Samples from the real probability distribution, whose parameters are to be
@@ -19,8 +28,14 @@ def measure(t):
     Returns
     -------
     1 or 0 depending on the result.
-    '''
+    '''    
     real_parameters, dim = glob.real_parameters, glob.dim
+    global first_measure
+    if first_measure:
+        print("Real parameters: ",real_parameters,end=".")
+        print(" [function_evaluations.likelihoods.measure]")
+        first_measure = False
+    
     r = random.random()
     # A sum of squared cosines. 
     p = np.random.binomial(1, p=np.sum(np.cos(real_parameters*t/2)**2/dim))
