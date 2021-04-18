@@ -16,7 +16,7 @@ The algorithm is repeated for a number of runs with randomly picked real
 values, and medians are taken over all of them to get the results and graphs.
 """
 
-import sys, random, matplotlib.pyplot as plt
+import sys, copy, random, matplotlib.pyplot as plt
 import numpy as np
 np.seterr(all='warn')
 dim=2
@@ -326,8 +326,8 @@ def expected_utility(distribution, t, scale):
         p1 += simulate(particle,t)*distribution[key]
     p0 = 1-p1
         
-    dist_0 = distribution.copy()
-    dist_1 = distribution.copy()
+    dist_0 = copy.deepcopy(distribution)
+    dist_1 = copy.deepcopy(distribution)
     
     # Update the distribution assuming each of the possible outcomes.
     dist_0 = bayes_update(dist_0,t,0) 
@@ -520,8 +520,9 @@ def main():
         f_real, alpha_real = f_max*random.random(), alpha_max*random.random()
         parameters.append(np.array([f_real,alpha_real]))
         
-        adapt_runs.append(adaptive_estimation(prior.copy(),steps,precision=0))
-        off_runs.append(offline_estimation(prior.copy(),f_max,steps))
+        adapt_runs.append(adaptive_estimation(copy.deepcopy(prior),steps,
+                                              precision=0))
+        off_runs.append(offline_estimation(copy.deepcopy(prior),f_max,steps))
         
         if (i%(runs/10)==0):
             sys.stdout.write('.');sys.stdout.flush();
