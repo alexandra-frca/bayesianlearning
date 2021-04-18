@@ -26,6 +26,14 @@ targets precisely the energy according to which the Hamiltonian dynamics are
 simulated, guaranteeing correctness. As such, marginalizing over the indices 
 should yield parameter samples that abide by the target distribution.
 
+For the subsampling indices, correlation is introduced between consecutive
+proposals by updating only a segment of the previous index set (correlated/
+block pseudo-marginal sampler). The purpose is to make the acceptance rate
+more stable, preventing the "locking" of some set of indices that could happen 
+otherwise (should the estimator significantly overestimate the likelihood 
+associated with them, yielding a too low acceptance probability for all 
+others).
+
 The target distributions consist of a sequence of annealed likelihoods, i.e. 
 the likelihood resulting from the whole data set, raised to the power of some 
 annealing coefficients.
@@ -41,8 +49,10 @@ and the parameter vector is one-dimensional.
 
 Based on "Hamiltonian Monte Carlo with Energy Conserving Subsampling"
 [https://arxiv.org/pdf/1402.4102.pdf]
-and "Subsampling Sequential Monte Carlo for Static Bayesian Models"
+, "Subsampling Sequential Monte Carlo for Static Bayesian Models"
 [https://arxiv.org/pdf/1805.03317.pdf]
+and "The Block Pseudo-Marginal Sampler"
+[https://arxiv.org/pdf/1603.02485.pdf]
 """
 
 import importlib, sys, copy
