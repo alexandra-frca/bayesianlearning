@@ -3,7 +3,7 @@
 
 The **HSMC inference** folder contains the application of Hamiltonian sequential Monte Carlo to the characterization of multi-parameter probabilistic functions (using sequential importance resampling, with the prior distribution as importance function).
 
-The **HSMC-ECS (annealing)** folder implements energy conserving subsampling HSMC (in a tempered likelihood setting).
+The **HSMC-ECS (annealing)** folder implements energy conserving subsampling HSMC, using a block pseudo marginal approach (in a tempered likelihood setting).
 
 The **Phase estimation** folder contains scripts that estimate a phase using 2 different approaches: gaussian rejection filtering, and MCMC (with Hamiltonian Monte Carlo and Metropolis-Hastings transitions).
 
