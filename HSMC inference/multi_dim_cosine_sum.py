@@ -9,7 +9,7 @@ steps.
 The particle positions are plotted.
 """
 
-import itertools, random, matplotlib.pyplot as plt
+import copy, itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
 dim = 2
@@ -875,7 +875,8 @@ def main():
     if test_no_resampling: # Just for reference.
         N_particles = 20**dim
         prior = generate_prior(distribution_type="uniform")
-        dist_no_resampling = offline_estimation(prior.copy(),data,threshold=0)
+        dist_no_resampling = offline_estimation(copy.deepcopy(prior),data,
+                                                threshold=0)
         plot_distribution(dist_no_resampling,real_parameters,
                           note="(no resampling)")
         print("No resampling test completed.")
@@ -896,7 +897,7 @@ def main():
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            final_dists.append(offline_estimation(prior.copy(),data,
+            final_dists.append(offline_estimation(copy.deepcopy(prior),data,
                           threshold=100, chunksize=1,plot_all=False))
             
         N_particles = N_particles*groups # To get the correct statistics. 

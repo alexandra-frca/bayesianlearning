@@ -15,7 +15,7 @@ along with the increase in knowledge about the system.
 The particle positions are plotted.
 """
 
-import itertools, random, matplotlib.pyplot as plt, pickle
+import copy, itertools, random, matplotlib.pyplot as plt, pickle
 from autograd import grad, numpy as np
 from google.colab import files
 np.seterr(all='warn')
@@ -1071,7 +1071,7 @@ def main():
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            dist, data = adaptive_estimation(prior.copy(),measurements,
+            dist, data = adaptive_estimation(copy.deepcopy(prior),measurements,
                           threshold=100,plot_all=False)
             final_dists.append(dist)
             
@@ -1086,7 +1086,8 @@ def main():
         # Chunksize is irrelevant here so don't print it
         N_particles = 50**dim
         prior = generate_prior(distribution_type="uniform")
-        dist_no_resampling = offline_estimation(prior.copy(),data,threshold=0)
+        dist_no_resampling = offline_estimation(copy.deepcopy(prior),data,
+                                                threshold=0)
         plot_distribution(dist_no_resampling,real_parameters,
                           note="(no resampling)")
         print("No resampling test completed.")
