@@ -15,7 +15,7 @@ annealing coefficients.
 The particle positions are plotted.
 """
 
-import itertools, random, matplotlib.pyplot as plt
+import copy, itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
 dim = 4
@@ -896,7 +896,7 @@ def main():
     if test_no_resampling: # Just for reference.
         N_particles = 12**dim
         prior = generate_prior(distribution_type="uniform")
-        dist_no_resampling = offline_estimation(prior.copy(),data,coefs,
+        dist_no_resampling = offline_estimation(copy.deepcopy(prior),data,coefs,
                                                 threshold=0,plot_all=False)
         plot_distribution(dist_no_resampling,real_parameters,
                           note="(no resampling)")
@@ -918,8 +918,8 @@ def main():
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            final_dists.append(offline_estimation(prior.copy(),data,coefs,
-                         threshold=float('inf'),plot_all=True))
+            final_dists.append(offline_estimation(copy.deepcopy(prior),data,
+                         coefs,threshold=float('inf'),plot_all=True))
             
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
