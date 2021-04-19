@@ -27,7 +27,7 @@ Based on "Stochastic Gradient Hamiltonian Monte Carlo"
 [https://arxiv.org/pdf/1402.4102.pdf]
 """
 
-import itertools, random, matplotlib.pyplot as plt
+import copy, itertools, random, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 np.seterr(all='warn')
 dim = 2
@@ -1157,7 +1157,7 @@ def main():
     if test_no_resampling: # Just for reference.
         N_particles = 15**dim
         prior = generate_prior(distribution_type="uniform")
-        dist_no_resampling = offline_estimation(prior.copy(),data,coefs,
+        dist_no_resampling = offline_estimation(copy.deepcopy(prior),data,coefs,
                                                 threshold=0,plot_all=False)
         plot_distribution(dist_no_resampling,real_parameters,
                           note="(no resampling)")
@@ -1179,8 +1179,8 @@ def main():
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            final_dists.append(offline_estimation(prior.copy(),data,coefs,
-                         threshold=float('inf'),plot_all=False))
+            final_dists.append(offline_estimation(copy.deepcopy(prior),data,
+                         coefs, threshold=float('inf'),plot_all=False))
             
         
         if groups > 1:
@@ -1200,8 +1200,8 @@ def main():
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            final_dists.append(offline_estimation(prior.copy(),data,coefs,
-                         threshold=float('inf'),subsample=True,plot_all=False))
+            final_dists.append(offline_estimation(copy.deepcopy(prior),data,
+                    coefs,threshold=float('inf'),subsample=True,plot_all=False))
             
         if groups > 1:
             N_particles = N_particles*groups 
