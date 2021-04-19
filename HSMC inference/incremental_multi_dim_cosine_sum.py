@@ -910,8 +910,8 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
     data: [([float],int)]
         The vector of experimental results obtained and used for computing the
         target likelihoods the SMC algorithm sampled from. Each datum is of the 
-        form (time,outcome), where 'time' is the (adaptive) control used for 
-        each experiment and 'outcome' is its result.
+        form (time,outcome), where 'time' is the control used for each 
+        experiment and 'outcome' is its result.
     '''
     global first_offline_estimation
     if first_offline_estimation is True:
