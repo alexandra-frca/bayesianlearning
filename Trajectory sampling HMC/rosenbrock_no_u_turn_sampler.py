@@ -279,7 +279,7 @@ def no_u_turn_sampler(initial_momentum, initial_point, eta):
     tree that contains it: should the trajectory have started at a point in  
     that subtree, it may never reach points outside of it, whereas any starting
     point should be able to generate in full every trajectory to which it 
-    belongs.
+    belongs with the same probability as any other point in that trajectory.
     As such, in cases like these the whole new trajectory is discarded, the old 
     one is kept, the execution terminates and a sample is returned (from the 
     old trajectory).
