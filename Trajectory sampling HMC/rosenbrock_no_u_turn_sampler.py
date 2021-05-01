@@ -435,13 +435,11 @@ def main():
     steps=10000
     print("Number of MCMC steps: ", steps)
     
-    traj_sample = "last" # last|uniform|partly biased|fully biased
     HMC_path = hamiltonian_MC_path(steps)
     print("Average leapfrog steps per MCMC step (total generated): 2^%.2f" %
           np.log2(total_leapfrog_steps/steps))
     print("Fraction of discarded half-trees when doubling: %d%%" %
           round(100*discarded_halftrees/steps))
     colored_scatter(HMC_path,title=
-                        ("Hamiltonian Monte Carlo (trajectory sampling: %s)" 
-                        % traj_sample))
+                        "Dynamic Hamiltonian Monte Carlo (no-U-turn sampler)")
 main()
