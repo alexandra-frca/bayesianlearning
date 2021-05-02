@@ -258,17 +258,8 @@ def metropolis_hastings_step(data, particle, S=None,
                   [new_particle[i]>right_constraints[i] for i in range(dim)]):
         new_particle = np.array([np.random.normal(particle[i], Sigma[i][i])
                                  for i in range(dim)])
-
-    # Compute the probabilities of transition for the acceptance probability.
-    inverse_transition_prob = \
-        np.product([gaussian(particle[i],new_particle[i],
-                                                  Sigma[i][i]) 
-                                          for i in range(dim)])
-    transition_prob = np.product([gaussian(new_particle[i],particle[i],
-                                       Sigma[i][i]) for i in range(dim)])
-
-    p = likelihood(data,new_particle)*inverse_transition_prob/ \
-        (likelihood(data,particle)*transition_prob)
+    # The proposal function is symmetric with respect to the particles.
+    p = likelihood(data,new_particle)/likelihood(data,particle)
     return new_particle,p
     
 def simulate_dynamics(data, initial_momentum, initial_particle, M,L,eta,
@@ -436,7 +427,8 @@ def hamiltonian_MC_step(data, particle,
         return(particle)
 
 first_bayes_update = True
-def bayes_update(data, new, distribution, threshold, signal_resampling=False):
+def bayes_update(data, new, distribution, threshold, signal_resampling=False,
+                 allow_repeated=True):
     '''
     Updates a prior distribution according to the outcome of a measurement, 
     using Bayes' rule. 
@@ -460,6 +452,11 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     signal_resampling: bool, optional
         Whether to return a second variable denoting the ocurrence of 
         resampling (Default is False).
+    allow_repeated: bool, optional
+        Whether to allow repeated particles when resampling (Default is False).
+        If False, extra Markov steps will be taken to ensure non-repetition when
+        necessary, and alternative mutations will be used whem HMC is unlikely 
+        to get an accepted proposal.
         
     Returns
     -------
@@ -475,7 +472,9 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     '''
     global first_bayes_update
     if first_bayes_update is True:
-        print("Bayes update: resampling threshold = ", threshold)
+        rep = "; " if allow_repeated else "; not "
+        rep += "allowing repeated particles"
+        print("Bayes update: resampling threshold = ", threshold, rep)
         first_bayes_update = False
 
     global N_particles
@@ -522,19 +521,26 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False):
     
         Cov_inv = np.linalg.inv(Cov)
     
-        # Perform a mutation step on each selected particle, imposing that the
-        #particles be unique.
+        # Perform a mutation step on each selected particle, eventually imposing 
+        #that the particles be unique.
         distribution.clear()
         for key in selected_particles:
             repeated = True
-            while (repeated == True):
+            while repeated:
                 particle = np.frombuffer(key,dtype='float64')
+                thr = 0 if allow_repeated else 0.1
                 mutated_particle = hamiltonian_MC_step(data,particle,
-                                                       M=Cov_inv)
+                                                      M=Cov_inv, threshold=thr)
                 key = mutated_particle.tobytes()
-                if (key not in distribution):
+                if key not in distribution:
                     repeated = False
-            distribution[key] = 1/N_particles
+                elif allow_repeated:
+                    # Key alreay exists.
+                    distribution[key] += 1/N_particles
+                    break
+            if not repeated:
+                # Just create particle in either case.
+                distribution[key] = 1/N_particles
 
         ESS = N_particles
     
@@ -931,12 +937,16 @@ def adaptive_estimation(distribution, updates, threshold=None,
     ans=""; resampled=False; counter=0; print("|0%",end="|")
     data = []
     ESS = N_particles
+    max_side = 50
     if updates < 10:
         progress_interval = 100/updates
     for i in range(updates):
         list = dict_to_list(distribution)
         particles = [p[0] for p in list]
-        occrate = space_occupation(particles)
+        occrate,max_side = space_occupation(particles,side=max_side)
+        if max_side>=3200:
+            print("> Process interrupted at iteration %d due to too many cells"
+             " required in 'space_occupation'. [offline_estimation]" % i,end="")
         adaptive_time = factor*1/(occrate*ESS/N_particles)
         data.append((adaptive_time,measure(adaptive_time)))
 
@@ -1017,11 +1027,19 @@ def space_occupation(points,side=50,thr=0.1):
     ----------
     points: [[float]]
         The list of coordinate vectors of the points.
+    side: int, optional
+        The dim-dimensional root of the number of cells into which to split 
+        the space (Default is 50).
+    thr: float, optional
+        The threshold fraction of particles in different cells that should
+        trigger a doubling of the 'side' parameter.
         
     Returns
     -------
     r: float
         The estimated space occupation ratio.
+    side: int
+        The maximum side used.
     '''
     ncells = side**dim
     occ = set()
@@ -1035,7 +1053,35 @@ def space_occupation(points,side=50,thr=0.1):
         #further to get a better estimate (occupation ratio will tend to be 
         #smaller).
         space_occupation(points,side=2*side)
-    return r
+    return r,side
+
+def split_dict(distribution):
+    '''
+    Converts a dictionary representation of a distribution to a tuple 
+    representation, with a list giving the particle locations and another the
+    weights (by the same order).
+    
+    Parameters
+    ----------
+    distribution: dict
+        , with (key,value):=(particle,importance weight) 
+        , and particle the parameter vector (as a bit string)
+        The distribution to be converted (SMC approximation).
+        
+    Returns
+    -------
+    particles: [[float]]
+        A list of particle locations.
+    weights: [float]
+        A list of particle weights, by the same order as the locations.
+    '''
+    particles,weights = [],[]
+    for key in distribution:
+        particle = np.frombuffer(key,dtype='float64')
+        weight = distribution[key]
+        particles.append(particle)
+        weights.append(weight)
+    return particles,weights
 
 def main():
     global real_parameters, N_particles, measurements
@@ -1048,7 +1094,7 @@ def main():
         #real_parameters = np.array([0.25,0.77,0.40])
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    measurements = 100
+    measurements = 150
     '''
     Offline:
     t_max = 100
@@ -1059,11 +1105,11 @@ def main():
     test_resampling, test_no_resampling = True, False
     
     if test_resampling:
-        groups = 5 # The algorithm will be ran independently for `groups`
+        groups = 1 # The algorithm will be ran independently for `groups`
         #particle groups, on the same data. Their results will be joined 
         #together in the end.
         
-        N_particles = 15**dim # For each group. Should be a power with integer
+        N_particles = 20**dim # For each group. Should be a power with integer
         #base and exponent `dim` so the particles can be neatly arranged into a
         #cubic latice for the prior (unless not using a uniform distribution).
         prior = generate_prior(distribution_type="uniform")
@@ -1078,6 +1124,10 @@ def main():
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
         plot_distribution(final_dist,real_parameters)
+
+        particles = split_dict(final_dist)
+        with open('online_particles.data', 'wb') as filehandle:
+            pickle.dump(particles, filehandle)
 
     print_stats()
     if test_no_resampling: # For reference; use same data.
