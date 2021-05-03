@@ -239,8 +239,8 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
 
 first_adaptive_estimation = True
 def adaptive_estimation(distribution, updates, threshold=None, 
-                        target_occupation = 0.0015, factor=1, exponent=0.95, 
-                        plot_all=False):
+                        target_occupation = 0.002, factor=1, exponent1=0.95, 
+                        exponent2=0.95, plot_all=False):
     '''
     Estimates the vector of parameters by sequentially performing experiments
     whose controls (times) are chosen adaptively according to the previous 
@@ -267,9 +267,18 @@ def adaptive_estimation(distribution, updates, threshold=None,
         step when updating the distribution (Default is None, N_particles/2 
         will be used given the current value of the global variable 
         N_particles). 
+    target_occupation: float, optional
+        The space occupation threshold after which to stop updating (Default is 
+        0.002).
     factor: float, optional
         The proportionality constant to be used for the adaptive times (Default 
         is 1).
+    exponent1: float, optional
+        The power to be used for the space occupation when computing the 
+        adaptive times (Default is 1).
+    exponent2: float, optional
+        The power to be used for the effective sample size to particle ratio 
+        when computing the adaptive times (Default is 1).
     plot_all: bool, optional
         Whether to plot the particle positions at each step (Default is False).
         
@@ -290,8 +299,8 @@ def adaptive_estimation(distribution, updates, threshold=None,
     global first_adaptive_estimation
     if first_adaptive_estimation is True:
         print("Adaptive estimation: %d measurements/updates;"
-        " times=%.1f/(occupation**%.2f*ESS/n); target_ocupation=%.5f" % 
-        (updates,factor,exponent,target_occupation))
+        " times=%.1f/(occupation**%.2f*(ESS/n)**%.2f); target_ocupation=%.5f" % 
+        (updates,factor,exponent1,exponent2,target_occupation))
     
     if updates==0:
         return
@@ -312,7 +321,8 @@ def adaptive_estimation(distribution, updates, threshold=None,
             print("> Process interrupted at iteration %d due to having "
              "achieved target occupation. [offline_estimation]" % i,end="")
             break
-        adaptive_time = factor*1/(occrate**exponent*ESS/N_particles)
+        denominator = occrate**exponent1*(ESS/N_particles)**exponent2
+        adaptive_time = factor*1/denominator
         data.append((adaptive_time,measure(adaptive_time)))
 
         if plot_all:
