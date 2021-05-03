@@ -389,7 +389,8 @@ def hamiltonian_MC_step(data, particle,
                 mass = "Cov^-1"
             else:
                 mass = "I"
-            print("HMC: %s, L=%d, eta=%.10f*N(1,s=%f)" % (mass,L,eta,s))
+            print("HMC: %s, L=%d, eta=%.10f*N(1,s=%f), threshold for RWM = %.2f" 
+                  % (mass,L,eta,s,threshold))
             first_hamiltonian_MC_step = False
             
         global total_HMC, accepted_HMC, total_MH, accepted_MH
@@ -878,7 +879,8 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
 
 first_adaptive_estimation = True
 def adaptive_estimation(distribution, updates, threshold=None, 
-                        factor=1, plot_all=False):
+                        target_occupation = 0.002, factor=1, exponent=1, 
+                        plot_all=False):
     '''
     Estimates the vector of parameters by sequentially performing experiments
     whose controls (times) are chosen adaptively according to the previous 
@@ -926,7 +928,8 @@ def adaptive_estimation(distribution, updates, threshold=None,
     global first_adaptive_estimation
     if first_adaptive_estimation is True:
         print("Adaptive estimation: %d measurements/updates;"
-        " times=%f/(occupation*ESS/n)" % (updates,factor))
+        " times=%.1f/(occupation**%.2f*ESS/n); target_ocupation=%.5f" % 
+        (updates,factor,exponent,target_occupation))
     
     if updates==0:
         return
@@ -941,13 +944,13 @@ def adaptive_estimation(distribution, updates, threshold=None,
     if updates < 10:
         progress_interval = 100/updates
     for i in range(updates):
-        list = dict_to_list(distribution)
-        particles = [p[0] for p in list]
+        particles, _ = split_dict(distribution)
         occrate,max_side = space_occupation(particles,side=max_side)
-        if max_side>=3200:
-            print("> Process interrupted at iteration %d due to too many cells"
-             " required in 'space_occupation'. [offline_estimation]" % i,end="")
-        adaptive_time = factor*1/(occrate*ESS/N_particles)
+        if occrate<=target_occupation:
+            print("\n> Process interrupted at iteration %d due to having "
+             "achieved target occupation. [offline_estimation]" % i,end="")
+            break
+        adaptive_time = factor*1/(occrate**exponent*ESS/N_particles)
         data.append((adaptive_time,measure(adaptive_time)))
 
         if plot_all:
@@ -971,8 +974,8 @@ def adaptive_estimation(distribution, updates, threshold=None,
         distribution, ESS, resampled = bayes_update(data, 
                           new, distribution, threshold, signal_resampling=True) 
         if resampled is None:
-            print("> Process interrupted at iteration %d due to non-invertible"
-                  " covariance matrix. [offline_estimation]" % i,end="")
+            print("\n> Process interrupted at iteration %d due to non-invert"
+                  "ible covariance matrix. [offline_estimation]" % i,end="")
             if plot_all:
                 plot_distribution(distribution,real_parameters, 
                   note="(interrupted; importance sampled but no Markov moves)")
@@ -1052,8 +1055,72 @@ def space_occupation(points,side=50,thr=0.1):
         # If not at least thr% of particles in different cells, fine grain cells 
         #further to get a better estimate (occupation ratio will tend to be 
         #smaller).
-        space_occupation(points,side=2*side)
+        space_occupation(points,side=10*side)
     return r,side
+
+def mean_weighted_variance(points, weights):
+    '''
+    Computes the mean over dimensions of the variance of a weighted set of 
+    points.
+    
+    Parameters
+    ----------
+    points: [[float]]
+        The list of points (ordered coordinates).
+    weights: [float]
+        The list of particle weights, by the same order as in 'particles'.
+        
+    Returns
+    -------
+    mean_var: float
+        The average variance over all dimensions.
+    '''
+    acc = 0
+    for d in range(dim):
+        coord = [point[d] for point in points]
+        average = np.average(coord, weights=weights)
+        variance = np.average((coord-average)**2, weights=weights)
+        acc += variance
+    mean_var = acc/dim
+    return (mean_var)
+
+def mean_cluster_variance(particles,weights,real_parameters):
+    '''
+    Computes and prints the mean over clusters and dimensions of the variance of 
+    a weighted set of points, and the mean absolute difference between the 
+    number of particles around each mode and its average.
+    
+    Parameters
+    ----------
+    particles: [[float]]
+        The list of points (ordered coordinates).
+    weights: [float]
+        The list of particle weights, by the same order as in 'particles'.
+    real_parameters: [float]
+        The real parameters that define the target modes (it suffices to take 
+        all permutations). They will be used as centroids when clustering.
+    '''
+    modes = list(itertools.permutations(real_parameters))
+    ngroups = len(modes)
+    grouped_particles = [[] for i in range(ngroups)]
+    grouped_weights = [[] for i in range(ngroups)]
+    # Group the particles by mode.
+    for i in range(len(particles)):
+        distances = [np.linalg.norm(particles[i]-mode) for mode in modes]
+        mode = np.argmin(distances)
+        grouped_particles[mode].append(particles[i])
+        grouped_weights[mode].append(weights[i])
+
+    vars = [mean_weighted_variance(grouped_particles[i],grouped_weights[i]) \
+            if len(grouped_particles[i])!=0 else 0
+            for i in range(ngroups)]
+    mean_var = np.mean(vars)
+    print("Mean variance over clusters and dimensions: ", mean_var)
+    particles_per_mode = [len(grouped_particles[i]) for i in range(ngroups)]
+    mean = np.mean(particles_per_mode)
+    mean_dev = np.mean([abs(np-mean) for np in particles_per_mode])
+    print("Mean percentual deviation of the particle number per mode: %d%%" % 
+          round(100*mean_dev/mean))
 
 def split_dict(distribution):
     '''
@@ -1094,7 +1161,7 @@ def main():
         #real_parameters = np.array([0.25,0.77,0.40])
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    measurements = 150
+    measurements = 100
     '''
     Offline:
     t_max = 100
@@ -1124,10 +1191,8 @@ def main():
         N_particles = N_particles*groups # To get the correct statistics. 
         final_dist = sum_distributions(final_dists)
         plot_distribution(final_dist,real_parameters)
-
-        particles = split_dict(final_dist)
-        with open('online_particles.data', 'wb') as filehandle:
-            pickle.dump(particles, filehandle)
+        particles,weights = split_dict(final_dist)
+        mean_cluster_variance(particles,weights,real_parameters)
 
     print_stats()
     if test_no_resampling: # For reference; use same data.
