@@ -13,3 +13,5 @@ The file `adaptive_multi_dim_cosine_sum.py` uses the space occupation constructi
 The file `incremental_multi_dim_cosine_sum.py` performs offline inference while tendentially increasing the evolution times, adapting the inference process of `multi_dim_cosine_sum.py` to loosely reproduce the trend of the adaptive strategy. 
 
 The file `variance_calculations.py` provides a quantitative estimate of the uncertainty of the distributions resulting from the schemes above by averaging variances.
+
+The `modules` folder and the `global_vars.py` module gather respectively function modules and variables that are common to `multi_dim_cosine_sum.py`, `adaptive_multi_dim_cosine_sum.py` and `incremental_multi_dim_cosine_sum.py`.
