@@ -425,7 +425,7 @@ def run_several(nruns):
         plot_distribution(successful_dists[median_ind],
                         median_run["real_parameters"],
                         note=(": median variance successful run (no. %d) "
-                        "[offline, t<100]" % overall_ind))
+                        "[offline, inc. times]" % overall_ind))
         
     print("_____________________________________________")
     glob.print_info()   
