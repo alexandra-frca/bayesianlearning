@@ -7,13 +7,15 @@ import numpy as np, matplotlib.pyplot as plt
 import global_vars as glob
 
 first_plot_particles = True
+first_err = True
 
 def init_distributions():
     '''
     Initializes constants pertaining to the module.
     '''
-    global first_plot_particles
+    global first_plot_particles, first_err
     first_plot_particles = True
+    first_err = True
     
 
 def SMCparameters(distribution, stdev=True, list=False):
@@ -323,7 +325,7 @@ def mean_cluster_variance(distribution,real_parameters):
     print("Mean percentual deviation of the particle number per mode: %d%%" % 
           round(100*mean_dev/mean))
           
-def space_occupation(points,side=50,thr=0.1):
+def space_occupation(points, side=50, increase=True, thr=0.1):
     '''
     Estimates the fraction of space occupied by some group of points, by 
     splitting the volume into dim-dimensional cubes and counting how many 
@@ -336,9 +338,12 @@ def space_occupation(points,side=50,thr=0.1):
     side: int, optional
         The dim-dimensional root of the number of cells into which to split 
         the space (Default is 50).
+    increase: bool, optional
+        Whether to increase the 'side' parameter when the number of occupied
+        sells gets too low.
     thr: float, optional
         The threshold fraction of particles in different cells that should
-        trigger a doubling of the 'side' parameter.
+        trigger an increase of the 'side' parameter.
         
     Returns
     -------
@@ -347,17 +352,87 @@ def space_occupation(points,side=50,thr=0.1):
     side: int
         The maximum side used.
     '''
+    global first_err
     dim, N_particles = glob.dim, glob.N_particles
-    ncells = side**dim
+    try:
+        ncells = side**dim
+    except Exception as err:
+        if first_err:
+            print("Error: ", err)
+            print("> Issue when attributing cells, backtracked at side = ",
+                  side, "[space_occupation]")
+            first_err = False
+        space_occupation(points,side=side/2,increase=False)
     occ = set()
     cell_width = 1/side
+    
     for point in points:
-        cell = tuple(int(point[i]//cell_width) for i in range(dim))
+        try:
+            cell = tuple(int(point[i]//cell_width) for i in range(dim))
+        except Exception as err:
+            if first_err:
+                print("Error: ", err)
+                print("> Issue when attributing cells, backtracked due to too "
+                      "many cells [space_occupation]")
+                first_err = False
+            space_occupation(points,side=side/2,increase=False)
         occ.add(cell)
     r = len(occ)/ncells
-    if len(occ)<=thr*N_particles: 
+    if increase and len(occ)<=thr*N_particles: 
         # If not at least thr% of particles in different cells, fine grain cells 
         #further to get a better estimate (occupation ratio will tend to be 
         #smaller).
-        space_occupation(points,side=10*side)
+        space_occupation(points,side=side*10)
     return r,side
+    
+def cluster_stats(distribution,real_parameters):
+    '''
+    Computes and prints the mean over clusters and dimensions of the variance of 
+    a distribution, and the mean absolute difference between the number of 
+    particles around each mode and its average.
+    
+    Parameters
+    ----------
+    distribution: dict
+        , with (key,value):=(particle,importance weight) 
+        , and particle the parameter vector (as a bit string)
+        The distribution to be converted (SMC approximation).
+    real_parameters: [float]
+        The real parameters that define the target modes (it suffices to take 
+        all permutations). They will be used as centroids when clustering.
+        
+    Returns
+    -------
+    mean_var: float
+        The variance, averaged over clusters and dimensions.
+    percent_dev: int
+        The maximal percentual deviation of the number of particles assigned to
+        each mode from the mean of this quantity.
+    average_distance: float
+        The all-particle average of the distance to the closest mode.
+    '''
+    particles,weights = split_dict(distribution)
+    modes = list(itertools.permutations(real_parameters))
+    ngroups = len(modes)
+    grouped_particles = [[] for i in range(ngroups)]
+    grouped_weights = [[] for i in range(ngroups)]
+    average_distance = 0
+    # Group the particles by mode.
+    for i in range(len(particles)):
+        distances = [np.linalg.norm(particles[i]-mode) for mode in modes]
+        closest_mode = np.argmin(distances)
+        average_distance += distances[closest_mode]*weights[i]
+        grouped_particles[closest_mode].append(particles[i])
+        grouped_weights[closest_mode].append(weights[i])
+
+    vars = [mean_weighted_variance(grouped_particles[i],grouped_weights[i]) \
+            if len(grouped_particles[i])!=0 else 0
+            for i in range(ngroups)]
+    mean_var = np.mean(vars)
+
+    particles_per_mode = [len(grouped_particles[i]) for i in range(ngroups)]
+    mean = np.mean(particles_per_mode)
+    max_dev = np.amax([abs(np-mean) for np in particles_per_mode])
+    percent_dev = round(100*max_dev/mean)
+
+    return mean_var, percent_dev, average_distance

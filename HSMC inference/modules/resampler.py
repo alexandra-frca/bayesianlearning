@@ -16,21 +16,25 @@ total_MH, accepted_MH = 0, 0
 total_HMC, accepted_HMC = 0, 0
 total_MH, accepted_MH = 0, 0
 
-def init_resampler():
+def init_resampler(print_info=True):
     '''
     Initializes some counters respecting the Markov transitions used by the 
     resampler, as well as some constants pertaining to the module.
+    
+    Parameters
+    ----------
+    print_info: bool, optional
+        Whether to print the resampler settings in use.
     '''
-    global first_hamiltonian_MC_step, first_metropolis_hastings_step, \
-        first_pseudomarginal_MH
-    first_hamiltonian_MC_step = True
-    first_metropolis_hastings_step = True
-    first_pseudomarginal_MH = True
+    if print_info:
+        global first_hamiltonian_MC_step, first_metropolis_hastings_step
+        first_hamiltonian_MC_step = True
+        first_metropolis_hastings_step = True
+        first_pseudomarginal_MH = True
     
     global total_HMC, accepted_HMC, total_MH, accepted_MH, total_u, accepted_u
     total_HMC, accepted_HMC = 0, 0
     total_MH, accepted_MH = 0, 0
-    total_u, accepted_u = 0, 0
     
 first_metropolis_hastings_step = True
 def metropolis_hastings_step(data, particle, S=None,
@@ -328,6 +332,26 @@ def HMC_resampler(data, distribution, allow_repeated):
             distribution[key] = 1/N_particles
     
     return distribution, success
+    
+def HMC_resampler_stats():
+    '''
+    Provides resampler related statistics, referring to since the moment 
+    `init_resampler` is called. 
+    
+    Returns
+    -------
+    resampler_calls: int
+        The total amount of times the resampler was called on the distribution.
+    acceptance_ratio: int
+        The percentual acceptance ratio for the HMC proposals.
+    '''
+    N_particles = glob.N_particles
+    resampler_calls, acceptance_ratio = 0, None
+    if (total_HMC != 0):
+        resampler_calls = int(total_HMC/N_particles)
+        acceptance_ratio = int(round(100*accepted_HMC/total_HMC))
+    return(resampler_calls,acceptance_ratio)
+    
     
 def print_resampler_stats():
     '''
