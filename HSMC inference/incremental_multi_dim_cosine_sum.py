@@ -12,19 +12,9 @@ The evolution times for the estimation are chosen offline, and picked according
 to some input parameters so as to tendentially increase them as the inference
 process advances. 
 
-The particle positions are plotted.
+Single or multiple runs can be performed; in the latter case information about 
+the set of runs as a group is printed.
 """
-
-import copy, itertools, random, importlib, matplotlib.pyplot as plt
-from autograd import grad, numpy as np
-import global_vars as glob
-from modules.likelihoods import measure, likelihood, init_likelihoods
-from modules.resampler import init_resampler, HMC_resampler, \
-    print_resampler_stats
-from modules.distributions import SMCparameters, plot_distribution, \
-    generate_prior, sum_distributions, init_distributions, mean_cluster_variance
-#np.seterr(all='warn')
-
 reload = True
 if reload:
     importlib.reload(sys.modules["global_vars"])
@@ -32,7 +22,15 @@ if reload:
     importlib.reload(sys.modules["modules.resampler"])
     importlib.reload(sys.modules["modules.distributions"])
 
-np.seterr(all='warn')
+import pprint, copy, itertools, random, importlib, matplotlib.pyplot as plt
+from autograd import grad, numpy as np
+import global_vars as glob
+from modules.likelihoods import measure, likelihood, init_likelihoods
+from modules.resampler import init_resampler, HMC_resampler, \
+    print_resampler_stats, HMC_resampler_stats
+from modules.distributions import SMCparameters, plot_distribution, \
+    generate_prior, sum_distributions, init_distributions,  \
+    mean_cluster_variance, cluster_stats
 
 glob.dim = 2
 glob.lbound = np.zeros(glob.dim) # The left boundaries for the parameters.
@@ -198,7 +196,9 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
         for j in range(chunksize):
             d = len(data) # Index of the datum to be added.
             # tmax=(g+1)*increment is a constant whithin each group g.
-            tmax = (d//groupsize+1)*increment 
+            g = (d//groupsize+1)
+            tmax = (g+1)*increment
+            #tmax = (g*2-1)*increment # To increase increment between groups.
             #prev_tmax = tmax - increment
             #time = random.randrange(prev_tmax,tmax)
             time = tmax*random.random() 
@@ -262,7 +262,10 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
         first_offline_estimation = False
     return distribution, data
 
-def main():
+def run_single():
+    '''
+    Sets the settings for a run of the algorithm and performs inference.
+    '''
     global real_parameters, N_particles, measurements
     dim = glob.dim
     glob.measurements = 100
@@ -333,4 +336,98 @@ def main():
         print("No resampling test completed with %d particles." %
               glob.N_particles)
     
-main()
+def run_several(nruns):
+    '''
+    Runs the estimation algorithm several times and reports back with the  
+    relevant information.
+    
+    Parameters
+    ----------
+    nruns: int
+        The number of runs to be performed.
+    '''
+    dim = glob.dim
+    glob.measurements = 100
+    glob.N_particles = 20**dim 
+    prior = generate_prior(distribution_type="uniform")
+    prox_thr, var_trh, unc_thr, covg_thr = 0.075, 0.025, 1.25, 95
+    
+    runs = []
+    successful = []
+    successful_dists = []
+    successful_vars = []
+    init_distributions() 
+    run_number = 0
+    while run_number!=nruns:
+        first_err = True # For signaling first issue in 'space_occupation'.
+        print("> Starting out run no. %d... [run_several]" % run_number)
+        init_resampler(print_info=(True if run_number==0 else False))
+
+        run = {}
+        #glob.real_parameters = np.array([random.random() for d in range(dim)])
+        glob.real_parameters = np.array([0.25,0.77]) 
+        run["real_parameters"] = glob.real_parameters
+        
+        try:
+            dist, data = offline_estimation(copy.deepcopy(prior),
+                        glob.measurements,chunksize=1,groupsize=30,
+                        increment=100,threshold=100,plot_all=False)
+        except KeyboardInterrupt:
+            print("> Keyboard interrupt, breaking from cycle... [run_several]")
+            break
+        except:
+            print("> Error at run number ",run_number,": ", 
+                  sys.exc_info()[0], " [run_several]")
+            continue
+        run["resampler_calls"],run["acceptance_ratio"] = HMC_resampler_stats()
+        ts = [t for t,r in data]
+        run["tmax"] = np.amax(ts)
+        run["mean_var"], run["percent_dev"], run["distance"] = \
+            cluster_stats(dist,glob.real_parameters)
+
+        accuracy = run["distance"]<prox_thr
+        precision = run["mean_var"]<var_trh
+        correctness = run["distance"]<unc_thr*run["mean_var"]**0.5*dim
+        mode_coverage = run["percent_dev"]<covg_thr
+        
+        success = accuracy and precision and correctness and mode_coverage 
+        run["conditions (accuracy,precision,correctness,mode coverage)"] = \
+            (accuracy,precision,correctness,mode_coverage)
+        run["success"] = success
+        if success: 
+            successful.append(run_number)
+            successful_vars.append(run["mean_var"])
+            successful_dists.append(dist)
+        succ = "[success]" if success else "[failed]"
+        print("> Run %d completed. [run_several]" % run_number)
+        if nruns<=20:
+            plot_distribution(dist,run["real_parameters"],
+                              note=("- run %d %s"% (run_number,succ)))
+            pprint.pprint(run)
+        runs.append(run)
+        run_number+=1
+
+    print("> Done. [run_several]")
+    print("____________________")
+    print("* Success rate: %d%%" % int(round(100*len(successful)/nruns)))
+    if len(successful)>0:
+        median_ind = successful_vars.index(np.percentile(successful_vars,50,
+                                                       interpolation='nearest'))
+        overall_ind = successful[median_ind]
+        print("* Median variance among sucessful runs: ", 
+              successful_vars[median_ind])
+        print("* Mean variance among sucessful runs: ", 
+              np.mean(successful_vars))
+        print("* Run corresponding to the median variance (no. %d): " 
+              % overall_ind)
+        median_run = runs[overall_ind]
+        pprint.pprint(median_run)
+        plot_distribution(successful_dists[median_ind],
+                        median_run["real_parameters"],
+                        note=(": median variance successful run (no. %d) "
+                        "[offline, t<100]" % overall_ind))
+        
+    print("_____________________________________________")
+    glob.print_info()   
+
+run_several(20)

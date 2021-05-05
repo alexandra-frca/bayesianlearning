@@ -14,26 +14,25 @@ along with the increase in knowledge about the system.
 
 The particle positions are plotted.
 """
-
-import copy, itertools, random, importlib, matplotlib.pyplot as plt
-from autograd import grad, numpy as np
-import global_vars as glob
-from modules.likelihoods import measure, likelihood, init_likelihoods
-from modules.resampler import init_resampler, HMC_resampler, \
-    print_resampler_stats
-from modules.distributions import SMCparameters, plot_distribution, \
-    generate_prior, sum_distributions, init_distributions, split_dict, \
-    mean_cluster_variance, space_occupation
-#np.seterr(all='warn')
-
-reload = True
+import importlib,sys
+reload = False
 if reload:
     importlib.reload(sys.modules["global_vars"])
     importlib.reload(sys.modules["modules.likelihoods"])
     importlib.reload(sys.modules["modules.resampler"])
     importlib.reload(sys.modules["modules.distributions"])
 
-np.seterr(all='warn')
+import traceback, pprint, copy, itertools, random, matplotlib.pyplot as plt
+from autograd import grad, numpy as np
+import global_vars as glob
+from modules.likelihoods import measure, likelihood, init_likelihoods
+from modules.resampler import init_resampler, HMC_resampler, \
+    print_resampler_stats, HMC_resampler_stats
+from modules.distributions import SMCparameters, plot_distribution, \
+    generate_prior, sum_distributions, init_distributions, split_dict, \
+    space_occupation, mean_cluster_variance, cluster_stats
+
+#np.seterr(all='warn')
 
 glob.dim = 2
 glob.lbound = np.zeros(glob.dim) # The left boundaries for the parameters.
@@ -239,7 +238,7 @@ def offline_estimation(distribution, data, threshold=None, chunksize=1,
 
 first_adaptive_estimation = True
 def adaptive_estimation(distribution, updates, threshold=None, 
-                        target_occupation = 0.002, factor=1, exponent1=0.95, 
+                        target_occupation = 0, factor=1, exponent1=0.95, 
                         exponent2=0.95, plot_all=False):
     '''
     Estimates the vector of parameters by sequentially performing experiments
@@ -269,7 +268,7 @@ def adaptive_estimation(distribution, updates, threshold=None,
         N_particles). 
     target_occupation: float, optional
         The space occupation threshold after which to stop updating (Default is 
-        0.002).
+        0).
     factor: float, optional
         The proportionality constant to be used for the adaptive times (Default 
         is 1).
@@ -301,6 +300,7 @@ def adaptive_estimation(distribution, updates, threshold=None,
         print("Adaptive estimation: %d measurements/updates;"
         " times=%.1f/(occupation**%.2f*(ESS/n)**%.2f); target_ocupation=%.5f" % 
         (updates,factor,exponent1,exponent2,target_occupation))
+        first_adaptive_estimation = False
     
     if updates==0:
         return
@@ -319,7 +319,7 @@ def adaptive_estimation(distribution, updates, threshold=None,
         occrate,max_side = space_occupation(particles,side=max_side)
         if occrate<=target_occupation:
             print("> Process interrupted at iteration %d due to having "
-             "achieved target occupation. [offline_estimation]" % i,end="")
+             "achieved target occupation. [adaptive_estimation]" % i,end="")
             break
         denominator = occrate**exponent1*(ESS/N_particles)**exponent2
         adaptive_time = factor*1/denominator
@@ -330,7 +330,7 @@ def adaptive_estimation(distribution, updates, threshold=None,
                 while ans!="Y" and ans!="N":
                     ans = input("> This is going to print over 10 graphs. "\
                                 "Are you sure you want that?"\
-                                " [offline_estimation]\n(Y/N)\n")
+                                " [adaptive_estimation]\n(Y/N)\n")
             else:
                 ans = "Y"
             if ans=="Y":
@@ -363,19 +363,19 @@ def adaptive_estimation(distribution, updates, threshold=None,
             
     print("") # For newline.
 
-    if first_adaptive_estimation is True:
-        print("Adaptive times: ", [t for t,r in data])
-        first_adaptive_estimation = False
+    #print("Adaptive times: ", [t for t,r in data])
+        
     return distribution, data
 
-def main():
-    global real_parameters, N_particles, measurements
+def run_single():
+    '''
+    Sets the settings for a run of the algorithm and performs inference.
+    '''
     dim = glob.dim
     glob.measurements = 100
 
     # To initialize some constants (for printing information on the console):
     init_distributions() 
-    init_likelihoods()
     init_resampler() # Also for the global statistics.
     
     random_parameters = False
@@ -415,6 +415,7 @@ def main():
                                                     else final_dists[0]
         plot_distribution(final_dist,real_parameters)
         mean_cluster_variance(final_dist,real_parameters)
+        cluster_stats(final_dist,real_parameters)
 
     glob.print_info()
     print_resampler_stats()
@@ -432,5 +433,114 @@ def main():
                           note="(no resampling)")
         print("No resampling test completed with %d particles." %
               glob.N_particles)
+
+first_run_several = True    
+def run_several(nruns):
+    '''
+    Runs the estimation algorithm several times and reports back with the  
+    relevant information.
     
-main()
+    Parameters
+    ----------
+    nruns: int
+        The number of runs to be performed.
+    '''
+    global first_run_several
+    dim = glob.dim
+    glob.measurements = 100
+    glob.N_particles = 20**dim 
+    prior = generate_prior(distribution_type="uniform")
+    prox_thr, var_trh, unc_thr, covg_thr = 0.075, 0.025, 1.25, 95
+    
+    runs = []
+    successful = []
+    successful_dists = []
+    successful_vars = []
+    run_number = 0
+    while run_number!=nruns:
+        print("> Starting out run no. %d... [run_several]" % run_number)
+        init_distributions()
+        init_resampler(print_info=(True if run_number==0 else False))
+        run = {}
+        #glob.real_parameters = np.array([random.random() for d in range(dim)])
+        glob.real_parameters = np.array([0.25,0.77]) 
+        run["real_parameters"] = glob.real_parameters
+        try:
+            dist, data = adaptive_estimation(copy.deepcopy(prior),
+                              glob.measurements,threshold=100,plot_all=False)
+        except KeyboardInterrupt as err:
+            print("> Keyboard interrupt, breaking from cycle... [run_several]")
+            break
+        except SystemExit as err:
+            print("> System exit [run_several] ")
+            print(err)
+            break
+        except Exception as err:
+            print("> Error at run number %d, see file \'exceptions.txt\'."
+                "[run_several]" % run_number)
+            write_or_append = 'w' if first_run_several else 'a'
+            first_run_several = False
+            with open('exceptions.txt', write_or_append) as filehandle:
+                print("---Run number %d---" % run_number,file=filehandle)
+                traceback.print_exception(*sys.exc_info(),file=filehandle)
+            continue
+        run["resampler_calls"],run["acceptance_ratio"] = HMC_resampler_stats()
+        ts = [t for t,r in data]
+        run["tmax"] = np.amax(ts)
+        run["mean_var"], run["percent_dev"], run["distance"] = \
+            cluster_stats(dist,glob.real_parameters)
+
+        accuracy = run["distance"]<prox_thr
+        precision = run["mean_var"]<var_trh
+        correctness = run["distance"]<unc_thr*run["mean_var"]**0.5*dim
+        mode_coverage = run["percent_dev"]<covg_thr
+        
+        success = accuracy and precision and correctness and mode_coverage 
+        run["conditions (accuracy,precision,correctness,mode coverage)"] = \
+            (accuracy,precision,correctness,mode_coverage)
+        run["success"] = success
+        if success: 
+            successful.append(run_number)
+            successful_vars.append(run["mean_var"])
+            successful_dists.append(dist)
+        succ = "[success]" if success else "[failed]"
+        print("> Run %d completed. [run_several]" % run_number)
+        if nruns<=20:
+            plot_distribution(dist,run["real_parameters"],
+                              note=("- run %d %s"% (run_number,succ)))
+            pprint.pprint(run)
+        runs.append(run)
+        run_number+=1
+
+    print("> Done. [run_several]")
+    print("Note: success has been considered as the conjunction of...")
+    print("- Average distance to a mode < %.3f (accuracy)" % prox_thr)
+    print("- Variance < %.3f (precision)" % var_trh)
+    print("- Distance to a mode < %.2f*dim*mean_variance**0.5 (correctness)" 
+          % unc_thr)
+    print("- Percentual deviation from mean mode coverage < %d (mode coverage)" 
+          % covg_thr)
+
+    print("____________________")
+    print("* Success rate: %d%%" % int(round(100*len(successful)/nruns)))
+    if len(successful)>0:
+        median_ind = successful_vars.index(np.percentile(successful_vars,50,
+                                                       interpolation='nearest'))
+        overall_ind = successful[median_ind]
+        print("* Median variance among sucessful runs: ", 
+              successful_vars[median_ind])
+        print("* Mean variance among sucessful runs: ", 
+              np.mean(successful_vars))
+        print("* Run corresponding to the median variance (no. %d): " 
+              % overall_ind)
+        median_run = runs[overall_ind]
+        pprint.pprint(median_run)
+        plot_distribution(successful_dists[median_ind],
+                        median_run["real_parameters"],
+                        note=(": median variance successful run (no. %d) "
+                        "[adaptive]" % overall_ind))
+        
+    print("_____________________________________________")
+    glob.print_info()   
+
+run_several(20)
