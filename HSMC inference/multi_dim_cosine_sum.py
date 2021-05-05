@@ -8,13 +8,13 @@ A sequential Monte Carlo approximation is used to represent the probability
 distributions, using Hamiltonian Monte Carlo and Metropolis-Hastings mutation 
 steps.
 
-The evolution times for the estimation are chosen offline, and picked according 
-to some input parameters so as to tendentially increase them as the inference
-process advances. 
+The evolution times for the estimation are chosen offline, and picked from an 
+interval [0,t_max[ for some maximum time of choice.
 
 Single or multiple runs can be performed; in the latter case information about 
 the set of runs as a group is printed.
 """
+
 reload = True
 if reload:
     importlib.reload(sys.modules["global_vars"])
@@ -29,8 +29,11 @@ from modules.likelihoods import measure, likelihood, init_likelihoods
 from modules.resampler import init_resampler, HMC_resampler, \
     print_resampler_stats, HMC_resampler_stats
 from modules.distributions import SMCparameters, plot_distribution, \
-    generate_prior, sum_distributions, init_distributions,  \
+    generate_prior, sum_distributions, init_distributions, \
     mean_cluster_variance, cluster_stats
+#np.seterr(all='warn')
+
+np.seterr(all='warn')
 
 glob.dim = 2
 glob.lbound = np.zeros(glob.dim) # The left boundaries for the parameters.
@@ -74,7 +77,7 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False,
         Whether to return a second variable denoting the ocurrence of 
         resampling (Default is False).
     allow_repeated: bool, optional
-        Whether to allow repeated particles when resampling (Default is True).
+        Whether to allow repeated particles when resampling (Default is False).
         If False, extra Markov steps will be taken to ensure non-repetition when
         necessary, and alternative mutations will be used whem HMC is unlikely 
         to get an accepted proposal.
@@ -88,7 +91,6 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False,
     resampled: bool
         Whether resampling has occurred.
     '''
-    N_particles = glob.N_particles
     global first_bayes_update
     if first_bayes_update is True:
         rep = "; " if allow_repeated else "; not "
@@ -96,6 +98,7 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False,
         print("Bayes update: resampling threshold = ", threshold, rep)
         first_bayes_update = False
 
+    global N_particles
     acc_weight, acc_squared_weight = 0, 0
     
     # Perform a correction step by re-weighting the particles according to 
@@ -130,11 +133,12 @@ def bayes_update(data, new, distribution, threshold, signal_resampling=False,
     return distribution
 
 first_offline_estimation = True
-def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
-                        groupsize=20, increment=50, plot_all=False):
+def offline_estimation(distribution, data, threshold=None, chunksize=1,
+                       plot_all=False):
     '''
-    Estimates the vector of parameters by sequentially performing experiments
-    whose times (the controls) tendentially increase in a step by step manner.
+    Estimates the vector of parameters by defining a set of experiments (times)
+    , performing them, and updating a given prior distribution according to the
+    outcomes (using Bayesian inference).
     
     Parameters
     ----------
@@ -142,9 +146,10 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
         , with (key,value):=(particle,importance weight) 
         , and particle the parameter vector (as a bit string)
         The prior distribution (SMC approximation).
-    measurements: int
-        The number of measurements/Bayes' updates to perform (these must match;
-        each experiment's control is decided based on the latest posterior).
+    data: [([float],int)]
+        A vector of experimental results obtained so far and their respective 
+        controls, each datum being of the form (time,outcome), where 'time' is          
+        the control used for each experiment and 'outcome' is its result.
     threshold: float, optional
         The threshold effective sample size that should trigger a resampling 
         step when updating the distribution (Default is None, N_particles/2 
@@ -153,14 +158,7 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
     chunksize: int, optional
         The number of data to be added at each iteration; the cumulative data 
         makes up the target posterior to be sampled from at each step (Default 
-        is 10).
-    groupsize: int, optional
-        The number of consecutive data whose maximum measurement time will 
-        coincide (Default is 10).
-    increment: float, optional
-        The consecutive maximum measurement times that will be assigned to each
-        group of #`groupsize` data; the actual times for individual data will be
-        chosen at random with this value as upper cap (Default is 50).
+        is 1).
     plot_all: bool, optional
         Whether to plot the particle positions at each step (Default is False).
         
@@ -170,40 +168,23 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
         , with (key,value):=(particle,importance weight) 
         , and particle the parameter vector (as a bit string)
         The final distribution (SMC approximation).
-    data: [([float],int)]
-        The vector of experimental results obtained and used for computing the
-        target likelihoods the SMC algorithm sampled from. Each datum is of the 
-        form (time,outcome), where 'time' is the control used for each 
-        experiment and 'outcome' is its result.
     '''
     global first_offline_estimation
     if first_offline_estimation is True:
-        print("Estimation: %d data; chunksize = %d; times = (i//%d+1)*%d"%
-              (measurements,chunksize,groupsize,increment))
+        print("Offline estimation: data chunksize = ", chunksize)
+        first_offline_estimation = False
     
-    if measurements==0:
+    if len(data)==0:
         return
     
     if threshold is None:
         threshold = N_particles/2
         
     ans=""; resampled=False; counter=0; print("|0%",end="|")
-    updates = measurements//chunksize
-    data = []
+    updates = len(data)//chunksize
     if updates < 10:
         progress_interval = 100/updates
     for i in range(updates):
-        for j in range(chunksize):
-            d = len(data) # Index of the datum to be added.
-            # tmax=(g+1)*increment is a constant whithin each group g.
-            g = (d//groupsize+1)
-            tmax = (g+1)*increment
-            #tmax = (g*2-1)*increment # To increase increment between groups.
-            #prev_tmax = tmax - increment
-            #time = random.randrange(prev_tmax,tmax)
-            time = tmax*random.random() 
-            data.append((time,measure(time)))
-
         if plot_all:
             if updates>10:
                 while ans!="Y" and ans!="N":
@@ -217,14 +198,13 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
                 info += " [resampled]" if resampled else ""
                 plot_distribution(distribution,real_parameters, 
                                   note=info)
-                
+            
         # Signal newest data for SMC weight updates.
         new = slice(i*chunksize,(i+1)*chunksize) 
         # Update the distribution: get the posterior of the current iteration, 
         #which is the prior for the next.
-        distribution, resampled = bayes_update(data[0:((i+1)*chunksize)], 
-                          new, distribution, threshold, signal_resampling=True) 
-        
+        distribution, resampled = bayes_update(data[0:((i+1)*chunksize)], new, 
+                              distribution, threshold, signal_resampling=True) 
         if resampled is None:
             print("> Process interrupted at iteration %d due to non-invertible"
                   " covariance matrix. [offline_estimation]" % i,end="")
@@ -240,36 +220,26 @@ def offline_estimation(distribution, measurements, threshold=None, chunksize=10,
         elif (i%(updates/10)<1): 
             counter+=10
             print(counter,"%",sep="",end="|")
-
+    
         # Use the remaining data if applicable. This also ensures that all data 
         #will be used in a single update if the chunksize is greater than the 
         #total number of data. 
-        left = measurements%chunksize
-        if i==updates-1 and left!=0:
-            for j in range(left):
-                d = len(data) # Index of the datum to be added.
-                tmax = (d//groupsize+1)*increment
-                time = tmax*random.random() 
-                data.append((time,measure(time)))
-
+        if i==updates-1 and len(data)%chunksize!=0:
             new = slice(updates*chunksize,len(data))
             distribution = bayes_update(data, new, distribution, threshold) 
             
     print("") # For newline.
-
-    if first_offline_estimation is True:
-        print("Offline times: ", [t for t,o in data])
-        first_offline_estimation = False
-    return distribution, data
+    return distribution
 
 def run_single():
     '''
     Sets the settings for a run of the algorithm and performs inference.
     '''
+    global first_bayes_update, first_offline_estimation
     global real_parameters, N_particles, measurements
     dim = glob.dim
     glob.measurements = 100
-        
+
     # To initialize some constants (for printing information on the console):
     init_distributions() 
     init_likelihoods()
@@ -280,11 +250,15 @@ def run_single():
         glob.real_parameters = np.array([random.random() for d in range(dim)])
     else:
         glob.real_parameters = np.array([0.25,0.77]) 
-        #real_parameters = np.array([0.25,0.77,0.40])
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
     # For ease of use since we don't want to change these variables anymore:
     real_parameters, measurements = glob.real_parameters, glob.measurements
+
+    t_max = 100
+    ts = [t_max*random.random() for k in range(measurements)] 
+    data=[(t,measure(t)) for t in ts]
+    print("Offline estimation: random times <= %d" % t_max)
     
     test_resampling, test_no_resampling = True, False
 
@@ -299,43 +273,37 @@ def run_single():
     #together in the end.
     
     if test_resampling:
+        first_bayes_update, first_offline_estimation = True, True
+        
         final_dists = []
         for i in range(groups):
             print("~ Particle group %d (of %d) ~" % (i+1,groups))
-            dist, data = offline_estimation(copy.deepcopy(prior),measurements,
-                        chunksize=1,groupsize=30, increment=75,
-                        threshold=100,plot_all=False)
-            final_dists.append(dist)
-            
+            final_dists.append(offline_estimation(copy.deepcopy(prior),data,
+                          threshold=100, chunksize=1,plot_all=False))
+          
         # To get the correct statistics:
         glob.N_particles = glob.N_particles*groups 
         final_dist = sum_distributions(final_dists) if groups>1 \
                                                     else final_dists[0]
         plot_distribution(final_dist,real_parameters)
+
         mean_cluster_variance(final_dist,real_parameters)
 
     glob.print_info()
     print_resampler_stats()
     
-    if test_no_resampling: # For reference; use same data.
-        global first_bayes_update, first_offline_estimation
+    if test_no_resampling: # Just for reference.
         first_bayes_update,first_offline_estimation = True, False
         # Chunksize is irrelevant here so don't print it (hence the False ^)
         glob.N_particles = 50**dim
         prior = generate_prior(distribution_type="uniform")
-        dist_no_resampling, data = offline_estimation(copy.deepcopy(prior),
-                        measurements,
-                        chunksize=1,groupsize=20, increment=100,
-                        threshold=0,plot_all=False)
-        glob.N_particles = 50**dim
-        prior = generate_prior(distribution_type="uniform")
         dist_no_resampling = offline_estimation(copy.deepcopy(prior),data,
-                                                threshold=0)
+                                                threshold=0)                                   
         plot_distribution(dist_no_resampling,real_parameters,
                           note="(no resampling)")
         print("No resampling test completed with %d particles." %
               glob.N_particles)
-    
+
 def run_several(nruns):
     '''
     Runs the estimation algorithm several times and reports back with the  
@@ -351,6 +319,9 @@ def run_several(nruns):
     glob.N_particles = 20**dim 
     prior = generate_prior(distribution_type="uniform")
     prox_thr, var_trh, unc_thr, covg_thr = 0.075, 0.025, 1.25, 95
+
+    t_max = 100
+    print("Offline estimation: random times <= %d" % t_max)
     
     runs = []
     successful = []
@@ -367,11 +338,12 @@ def run_several(nruns):
         #glob.real_parameters = np.array([random.random() for d in range(dim)])
         glob.real_parameters = np.array([0.25,0.77]) 
         run["real_parameters"] = glob.real_parameters
+        ts = [t_max*random.random() for k in range(glob.measurements)] 
+        data=[(t,measure(t)) for t in ts]
         
         try:
-            dist, data = offline_estimation(copy.deepcopy(prior),
-                        glob.measurements,chunksize=1,groupsize=30,
-                        increment=75,threshold=100,plot_all=False)
+            dist = offline_estimation(copy.deepcopy(prior),data,
+                          threshold=100, chunksize=1,plot_all=False)
         except KeyboardInterrupt:
             print("> Keyboard interrupt, breaking from cycle... [run_several]")
             break
@@ -380,7 +352,6 @@ def run_several(nruns):
                   sys.exc_info()[0], " [run_several]")
             continue
         run["resampler_calls"],run["acceptance_ratio"] = HMC_resampler_stats()
-        ts = [t for t,r in data]
         run["tmax"] = np.amax(ts)
         run["mean_var"], run["percent_dev"], run["distance"] = \
             cluster_stats(dist,glob.real_parameters)
