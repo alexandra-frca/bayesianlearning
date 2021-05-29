@@ -170,7 +170,7 @@ def weighted_kernel_density_estimate(x, points, stdev):
     kde = 0
     for point in points:
         p,w = point
-        kde += gaussian(x,p,h,normalize=True)/n
+        kde += w*gaussian(x,p,h,normalize=True)/n
         # Division by h is already accounted for by the normalization.
     return(kde)
 
@@ -255,7 +255,9 @@ def plot_kdes(distribution,reference,labels):
     print("[plot_kdes]")
     ks = dict_to_list(distribution)
     rks = dict_to_list(reference)
-    xs = np.arange(0.7,0.9,0.001)
+    #xs = np.arange(0.795,0.805,0.00001)
+    #np.linspace(0,1,1000)
+    xs = np.arange(0,1,0.001)
     ys =  [weighted_kernel_density_estimate(x,ks,avg_stdev) for x in xs]
     rys = [weighted_kernel_density_estimate(x,rks,avg_stdev) for x in xs]
     
