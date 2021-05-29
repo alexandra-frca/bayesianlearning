@@ -68,7 +68,7 @@ from tools.distributions import plot_particles, generate_prior, \
     sum_distributions, init_distributions
 #np.seterr(all='warn')
 
-reload = False
+reload = True
 if reload:
     importlib.reload(sys.modules["global_vars"])
     importlib.reload(sys.modules["function_evaluations.likelihoods"])
@@ -136,9 +136,8 @@ def bayes_update(data, distribution, coef, previous_coef, threshold,
     mean = SMCparameters(distribution,stdev=False)
     Tcoefs = Taylor_coefs(data,mean)
     # Perform a correction step by re-weighting the particles according to 
-    #the last chunk of data added (i.e. to the ratio between the latest 
-    #cumulative likelihood to the previous one, which cancels out all but those 
-    #newest data).
+    #the ratio between annealed likelihoods (i.e. difference between 
+    #coefficients).
     for key in distribution: 
         particle = np.frombuffer(key,dtype='float64')
         weight,u = distribution[key]
@@ -310,14 +309,14 @@ def main():
     init_likelihoods()
     init_resampler() # Also for the global statistics.
     
-    steps = 1
+    steps = 10
     coefs = [i/steps for i in range(steps+1)] # These coefficients could be
     #chosen adaptively to keep the effective sample size near some target value
     #, but evenly spaced coefficients seem to work well for this problem and 
     #don't require extra Bayes updates. 
     #coefs=coefs[0:2]
 
-    tmax = 100 # If tmax is too large, subsampling works poorly (because the
+    tmax = 5 # If tmax is too large, subsampling works poorly (because the
     #likelihood is too sharp, the derivatives too large, and the approximations
     #and estimators very off-target).
     
@@ -328,7 +327,7 @@ def main():
     #group. Should be a power with integer base and exponent `dim` so the 
     #particles can be neatly arranged into a cubic latice for the prior (unless 
     #not using a uniform distribution/lattice).
-    prior = generate_prior(distribution_type="uniform")
+    prior = generate_prior(distribution_type="uniform",uniform_limits=(0,1))
     ngroups = 1
     
     if test_no_resampling: # Just for reference.
@@ -406,8 +405,8 @@ def main():
                          (samples,measurements)))
         
     if dim==1 and test_resampling and test_subsampling:
-        plot_kdes(final_dist,final_dist_subs,
-                 labels=["Full data HSMC","Subsampling HSMC"])
+        plot_kdes(final_dist_subs,final_dist,
+                 labels=["Subsampling HSMC","Full data HSMC"])
 
     print_info()
     print_resampler_stats()
