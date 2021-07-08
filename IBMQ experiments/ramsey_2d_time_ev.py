@@ -16,6 +16,7 @@ standard deviations).
 
 import sys, copy, random, pickle, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
+from google.colab import files
 np.seterr(all='warn')
 dim=2
 total_HMC, accepted_HMC = 0, 0
@@ -46,13 +47,10 @@ def measure(t, particle=np.array([f_real,alpha_real])):
     -------
     1 if the result is |1>, 0 if it is |0>.
     '''
-    r = random.random()
-    p = np.random.binomial(1, 
+    r = np.random.binomial(1, 
                            p=(np.cos(2*np.pi*f_real*t/2)**2*np.exp(-alpha_real*t)+
                               (1-np.exp(-alpha_real*t))/2))
-    if (r<p):
-        return 1
-    return 0
+    return r
 
 def simulate_1(particle, t):
     '''
@@ -778,16 +776,16 @@ def print_stats(runs,steps):
         The total number of iterations of each run.
     '''
     print("* Average number of resampler calls: %d (%d%%)." 
-#            % (resampler_calls/runs,round(100*resampler_calls/(runs*steps))))
+           % (resampler_calls/runs,round(100*resampler_calls/(runs*steps))))
     if (total_HMC!=0 or total_MH!=0):
         print("* Percentage of HMC steps:  %.1f%%." 
-#                % (100*total_HMC/(total_HMC+total_MH)))
+               % (100*total_HMC/(total_HMC+total_MH)))
     if (total_HMC != 0):
         print("* Hamiltonian Monte Carlo: %d%% mean particle acceptance rate." 
-#                % round(100*accepted_HMC/total_HMC))
+               % round(100*accepted_HMC/total_HMC))
     if (total_MH != 0):
         print("* Metropolis-Hastings:     %d%% mean particle acceptance rate." 
-#            % round(100*accepted_MH/total_MH))
+           % round(100*accepted_MH/total_MH))
     print("(n=%d; runs=%d; 2d)" % (N_particles,runs))
 
 def uniform_prior():
@@ -943,7 +941,7 @@ def get_data(upload=False, filename=None, every=1, steps=75, rep=1, rev=False,
         data = [(t,measure(t)) for t in ts]
     print("Data vector:", data)
     print("> t∈[%.1f,%.1f[; steps = %d; f∈[%.2f,%.2f[; α∈[%.2f,%.2f[ (T2*∈[%.2f,%.2f[)" 
-#            % (tmin,tmax,steps,left_boundaries[0],right_boundaries[0],
+           % (tmin,tmax,steps,left_boundaries[0],right_boundaries[0],
               left_boundaries[1], right_boundaries[1],
               1/right_boundaries[1],1/left_boundaries[1]))
     return data,steps
@@ -959,7 +957,7 @@ def main():
     datasets = 1
     runs_each = 1
     print("> Will use %d datasets for %d runs each to compute the statistics." 
-#           % (datasets,runs_each))
+          % (datasets,runs_each))
     runs = datasets*runs_each
     off_runs = []
     parameters = [np.array([f_real,alpha_real]) for i in range(runs)]
@@ -987,7 +985,7 @@ def main():
                   fs.append(f)
                   alphas.append(alpha)
                   print("> Estimated f=%.2f and alpha=%.2f (T2=%.2f)."
-#                       % (f,alpha,1/alpha))
+                      % (f,alpha,1/alpha))
     except KeyboardInterrupt:
           err = sys.exc_info()[0]
           runs = len(fs)
@@ -1011,10 +1009,10 @@ def plot_evolution():
           (f_real,alpha_real,1/alpha_real))
 
     prior = uniform_prior()
-    datasets = 50
+    datasets = 100
     runs_each = 5
     print("> Will use %d datasets for %d runs each to compute the statistics." 
-#           % (datasets,runs_each))
+          % (datasets,runs_each))
     runs = datasets*runs_each
     off_runs = []
     parameters = [np.array([f_real,alpha_real]) for i in range(runs)]
@@ -1034,42 +1032,41 @@ def plot_evolution():
     times = [t-times[0] for t in times]
 
     try:
-          for i in range(datasets):
-              print(f"> Dataset {i}.")
+      for i in range(datasets):
+          print(f"> Dataset {i}.")
 
-              filename = filename_start + str(i) + '.data'
-              '''
-              filename = 'ramsey_data[0.2,5[df=1.83_sched=75_nshots=1_' + str(i) + '.data' if i<5 \
-                  else 'ramsey_data[0.2,5[df=1.83_sched=75_nshots=5_' + str(i%5) + '.data'
-              every = 1 if i<5 else 5
-              '''
-              data,steps = get_data(filename=filename, every=1, upload=True, 
-                                 steps=75, rep=2, rev=False, tmin=0.2, tmax=5, rand=False)
+          filename = filename_start + str(i) + '.data'
+          '''
+          filename = 'ramsey_data[0.2,5[df=1.83_sched=75_nshots=1_' + str(i) + '.data' if i<5 \
+              else 'ramsey_data[0.2,5[df=1.83_sched=75_nshots=5_' + str(i%5) + '.data'
+          every = 1 if i<5 else 5
+          '''
+          data,steps = get_data(filename=filename, every=1, upload=True, 
+                              steps=75, rep=2, rev=False, tmin=0.2, tmax=5, rand=False)
 
-              for j in range(runs_each):
-                  (dist,sequences) = offline_estimation(copy.deepcopy(prior),
-                                                        data,plot=False)
-                  (f,alpha), (fstdev,alphastdev) = SMCparameters(dist)
+          for j in range(runs_each):
+              (dist,sequences) = offline_estimation(copy.deepcopy(prior),
+                                                    data,plot=False)
+              (f,alpha), (fstdev,alphastdev) = SMCparameters(dist)
 
-                  group_fs.append(f); group_f_stdevs.append(fstdev)
-                  group_alphas.append(alpha); group_alpha_stdevs.append(alphastdev)
-                  
-                  print("> Estimated f=%.2f ± %.2f and alpha=%.2f ± %.2f (T2=%.2f ± %.2f)."
-#                       % (f,fstdev,alpha,alphastdev,1/alpha,1/alpha**2*alphastdev))
-                  
-              group_f = np.median(group_fs)
-              group_f_stdev = np.median(group_f_stdevs)
-              group_alpha = np.median(group_alphas)
-              group_alpha_stdev = np.median(group_alpha_stdevs)
+              group_fs.append(f); group_f_stdevs.append(fstdev)
+              group_alphas.append(alpha); group_alpha_stdevs.append(alphastdev)
+              
+              print("> Estimated f=%.2f ± %.2f and alpha=%.2f ± %.2f (T2=%.2f ± %.2f)."
+                  % (f,fstdev,alpha,alphastdev,1/alpha,1/alpha**2*alphastdev))
+              
+          group_f = np.median(group_fs)
+          group_f_stdev = np.median(group_f_stdevs)
+          group_alpha = np.median(group_alphas)
+          group_alpha_stdev = np.median(group_alpha_stdevs)
 
-              fs.append(group_f)
-              f_stdevs.append(group_f_stdev)
-              alphas.append(group_alpha)
-              alpha_stdevs.append(group_alpha_stdev)
+          fs.append(group_f)
+          f_stdevs.append(group_f_stdev)
+          alphas.append(group_alpha)
+          alpha_stdevs.append(group_alpha_stdev)
 
-              group_fs, group_alphas = [], []
-              group_f_stdevs, group_alpha_stdevs = [], []
-
+          group_fs, group_alphas = [], []
+          group_f_stdevs, group_alpha_stdevs = [], []
     except KeyboardInterrupt:
           err = sys.exc_info()[0]
           datasets = len(fs)
@@ -1079,7 +1076,7 @@ def plot_evolution():
         T2s = [1/alpha for alpha in alphas]
         T2_stdevs = [1/alphas[i]**2*alpha_stdevs[i] for i in range(datasets)]
 
-        fig, axs = plt.subplots(1,figsize=(10,6))
+        fig, axs = plt.subplots(1,figsize=(10,6)); axs.set_ylim((1.5,2))
         plot_errorplot(times[:datasets], fs, f_stdevs, axs, 
                        ylabel="Estimated frequency", 
                        units="MHz", subject="Frequency", color="royalblue")
@@ -1088,7 +1085,47 @@ def plot_evolution():
         plot_errorplot(times[:datasets], T2s, T2_stdevs, axs2, 
                        ylabel="Estimated T2*", 
                        units="μs", subject="T2*", color="crimson")
+        axs2.set_ylim(bottom=0)
 
         print_stats(runs,steps)
 
-plot_evolution()
+        filename = "T2_evolution.data"
+        with open(filename, 'wb') as filehandle:
+          pickle.dump((T2s,T2_stdevs), filehandle)
+        files.download(filename)
+
+        filename = "f_evolution.data"
+        with open(filename, 'wb') as filehandle:
+          pickle.dump((fs,f_stdevs), filehandle)
+        files.download(filename)
+
+def plot_evolution_from_files():
+    filename_start = 'armonk_ramsey_data_ts[2.0,5[f=1.83_sched=75_nshots=2_'
+    times_file = filename_start + "finish_times.data"
+    with open(times_file, 'rb') as filehandle: 
+        times = pickle.load(filehandle)
+    times = [t-times[0] for t in times]
+
+    with open("T2_evolution.data", 'rb') as filehandle: 
+        T2s, T2_stdevs = pickle.load(filehandle)
+
+    with open("f_evolution.data", 'rb') as filehandle: 
+        fs, f_stdevs = pickle.load(filehandle)
+
+    npoints = len(T2s)
+
+    fig, axs = plt.subplots(1,figsize=(10,6))#; axs.set_ylim((1.7,2))
+    plot_errorplot(times[:npoints], [f-1.83 for f in fs], f_stdevs, axs, 
+                    ylabel="Estimated frequency disparity", 
+                    units="MHz", subject="Frequency", color="royalblue")
+
+    fig2, axs2 = plt.subplots(1,figsize=(10,6))
+    plot_errorplot(times[:npoints], T2s, T2_stdevs, axs2, 
+                    ylabel="Estimated T2*", 
+                    units="μs", subject="T2*", color="crimson")
+    axs2.set_ylim(bottom=0,top=25)
+
+    plt.show()
+
+#plot_evolution()
+plot_evolution_from_files()
