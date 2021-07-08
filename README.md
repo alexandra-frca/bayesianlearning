@@ -18,3 +18,5 @@ The **SG-H(S)MC (annealing)** folder implements Hamiltonian dynamics based algor
 The **Tempered likelihood HSMC inference** folder contains the application of tempered/annealed Hamiltonian sequential Monte Carlo to the characterization of multi-parameter probabilistic functions.
 
 The **Trajectory sampling strategies** folder applies several variations of HMC to a Rosenbrock function density. These variations differ in how they pick a sample from the generated trajectory (in all other files only the last state was considered, and a Metropolis correction was performed). Includes static and dynamic approaches.
+
+The `dissertation_examples` jupyter notebook visually represents a few key examples to be used for illustrations.
