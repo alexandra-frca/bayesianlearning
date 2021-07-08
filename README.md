@@ -5,7 +5,7 @@ The **HSMC inference** folder contains the application of Hamiltonian sequential
 
 The **HSMC-ECS (annealing)** folder implements energy conserving subsampling HSMC, using a block pseudo marginal approach (in a tempered likelihood setting).
 
-The **IBMQ experiments** folder contains a Jupyter notebook with several characterization experiments on IBMQ's backends (performed using *OpenPulse*), along with a selection of the data gathered from them.
+The **IBMQ experiments** folder contains a Jupyter notebook with several characterization experiments on IBMQ's backends (performed using *OpenPulse*), along with a selection of the data gathered from them and some files adapted to perform inference based on these data.
 
 The **Phase estimation** folder contains scripts that estimate a phase using 2 different approaches: gaussian rejection filtering, and MCMC (with Hamiltonian Monte Carlo and random walk Metropolis transitions).
 
