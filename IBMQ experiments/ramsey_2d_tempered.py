@@ -185,7 +185,7 @@ def test_differentiation():
 
 first_metropolis_hastings_step = True
 def metropolis_hastings_step(data, particle, coef, S=np.identity(2),
-                             factor=0.05,
+                             factor=0.1,
                              left_constraints=left_boundaries, 
                              right_constraints=right_boundaries):
     '''
@@ -226,7 +226,7 @@ def metropolis_hastings_step(data, particle, coef, S=np.identity(2),
           Sigma = "Sigma"
       else:
           Sigma = "I"
-      print("MH:  Sigma=%s**0.5, factor=%.4f" % (Sigma,factor))
+      print("MH:  Sigma=%s, factor=%.4f" % (Sigma,factor))
       first_metropolis_hastings_step = False
 
     global dim
@@ -787,7 +787,7 @@ def print_stats(runs,steps):
            % round(100*accepted_MH/total_MH))
     print("(n=%d; runs=%d; 2d, tempered estimation)" % (N_particles,runs))
 
-def uniform_prior():
+def uniform_prior(random=True):
     '''
     Generates a flat prior distribution within the defined boundaries.
     
@@ -799,18 +799,32 @@ def uniform_prior():
         The prior distribution (SMC approximation).
 
     '''
+    global N_particles
+    print("> Sampling from uniform distribution for the prior." if random 
+          else "> Arranging particles on a grid for the prior.")
     f_min, alpha_min = left_boundaries
     f_max, alpha_max = right_boundaries
-    each = int(round(N_particles**(1/dim)))
-    fs = np.linspace(f_min,f_max,each)
-    alphas = np.linspace(alpha_min,alpha_max,each)
     prior = {}
-    for f in fs:
-        for alpha in alphas:
-            particle = np.array([f,alpha])
-            # Use bit strings as keys because numpy arrays are not hashable.
+    if random:
+        particle_list = [np.array([np.random.uniform(f_min,f_max),
+                                   np.random.uniform(alpha_min,alpha_max)])
+                                   for i in range(N_particles)]
+        for particle in particle_list:
             key = particle.tobytes()
             prior[key] = 1/N_particles
+    else:
+        each = int(round(N_particles**(1/dim)))
+        fs = np.linspace(f_min,f_max,each)
+        alphas = np.linspace(alpha_min,alpha_max,each)
+        N_particles = each*dim
+        for f in fs:
+            for alpha in alphas:
+                particle = np.array([f,alpha])
+                # Use bit strings as keys because numpy arrays are not hashable.
+                key = particle.tobytes()
+                prior[key] = 1/N_particles
+
+    print("> Total particles: ", len(prior), " [uniform_prior].")
     return prior
 
 def offline_estimation(distribution, data, tempering_coefficients, plot=False):
@@ -948,17 +962,21 @@ def get_data(upload=False, filename=None, every=1, steps=75, rep=1, rev=False,
 def main():
     global f_real, alpha_real, N_particles, right_boundaries, dim
     f_max, alpha_max = right_boundaries
-    f_real, alpha_real = 1.83, 1/15
+    f_real, alpha_real = 1.83, 1/5
     print("> f = %.2f, alpha = %.2f (T2* = %.2f)\n" % 
           (f_real,alpha_real,1/alpha_real))
 
     prior = uniform_prior()
     plot_distribution(prior,note=" (prior)")
-    steps = 150
-    coefs = [i/steps for i in range(steps+1)]
+    steps = 75
+    #coefs = np.linspace(0,1,steps) #[i/steps for i in range(steps+1)]
+    
+    coefs = np.concatenate([np.linspace(0,0.15,int(steps/3)+1,endpoint=False),
+                            np.linspace(0.15,0.4,int(steps/3),endpoint=False),
+                            np.linspace(0.4,1,int(steps/3))])
     #coefs = [0]+[(1/2)**((steps-k)) for k in range(1,steps+1)]
 
-    print("Tempering coefficients: ", coefs)
+    print("Tempering coefficients (%d incl. 0): " % len(coefs), coefs)
     datasets = 10
     runs_each = 1
     print("> Will use %d datasets for %d runs each to compute the statistics." 
@@ -978,7 +996,7 @@ def main():
                   else 'ramsey_data[0.2,5[df=1.83_sched=75_nshots=5_' + str(i%5) + '.data'
               every = 1 if i<5 else 5
               '''
-              data,meas = get_data(filename=filename, every=1, upload=False, 
+              data,meas = get_data(filename=filename, every=1, upload=True, 
                                  steps=75, rep=2, rev=False, tmin=0.2, tmax=5, rand=False)
 
               for j in range(runs_each):
