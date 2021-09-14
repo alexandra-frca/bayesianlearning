@@ -34,12 +34,9 @@ def measure(M, theta):
     The obtained result (0 or 1).
     '''
     global phi_real
-    r = random.random()
-    p = np.random.binomial(1, 
+    r = np.random.binomial(1, 
                            p=(1-np.cos(M*(phi_real+theta)))/2)
-    if (r<p):
-        return 1
-    return 0
+    return r
 
 def simulate_1(M, theta, phi):
     '''

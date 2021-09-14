@@ -47,13 +47,10 @@ def measure(t, particle=np.array([f_real,alpha_real]), tries=1):
     -------
     1 if the result is |+>, 0 if it is |->.
     '''
-    r = random.random()
-    p = np.random.binomial(tries, 
+    r = np.random.binomial(tries, 
                            p=(np.cos(f_real*t/2)**2*np.exp(-alpha_real*t)+
                               (1-np.exp(-alpha_real*t))/2))/tries
-    if (r<p):
-        return 1
-    return 0
+    return r
 
 def simulate(particle, t):
     '''
