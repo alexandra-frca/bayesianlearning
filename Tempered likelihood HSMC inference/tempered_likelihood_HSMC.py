@@ -46,12 +46,9 @@ def measure(t):
     -------
     1 or 0 depending on the result.
     '''
-    r = random.random()
     # A sum of squared cosines. 
-    p = np.random.binomial(1, p=np.sum(np.cos(real_parameters*t/2)**2/dim))
-    if (r<p):
-        return 1
-    return 0
+    r = np.random.binomial(1, p=np.sum(np.cos(real_parameters*t/2)**2/dim))
+    return r
 
 def simulate_1(particle, t):
     '''
