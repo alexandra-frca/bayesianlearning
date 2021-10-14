@@ -1,4 +1,4 @@
-# Quantum parameter estimation with Bayesian learning (Masters project)
+## Quantum parameter estimation with Bayesian learning (Masters project)
 ### Alexandra Ramôa Alves | Engineering Physics - Physics of Information, University of Minho
 
 The **HSMC inference** folder contains the application of Hamiltonian sequential Monte Carlo to the characterization of multi-parameter probabilistic functions (using sequential importance resampling, with the prior distribution as importance function).
