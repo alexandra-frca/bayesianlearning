@@ -201,9 +201,9 @@ def plot_likelihood(data, points=None):
         y-axis denotes evolution (Default is None).
     '''
     fig, axs = plt.subplots(1,figsize=(15,10))
-    axs.set_title("Phase Estimation (gaussians)",pad=20,fontsize=18)
-    axs.set_ylabel("Likelihood",fontsize=14)
-    axs.set_xlabel("Phase",fontsize=14)
+    #axs.set_title("Phase Estimation (gaussians)",pad=20,fontsize=18)
+    axs.set_ylabel("Likelihood",fontsize=20)
+    axs.set_xlabel("Phase (radians)",fontsize=20)
     axs.tick_params(axis='y', colors="blue")
     axs.yaxis.label.set_color('blue')
     xx = np.arange(0.1,2*np.pi,0.1)
@@ -214,16 +214,19 @@ def plot_likelihood(data, points=None):
     
     if points is not None:
         axs2 = axs.twinx()
-        axs2.set_ylabel("Iteration number",fontsize=14)
-        y = [i for i in range(len(points))]
-        axs2.scatter(points, y, marker=".",s=10,c="black",label="means")            
+        axs2.set_ylabel("Iteration number",fontsize=20)
+        selected_points = points[::3] # plot every third point only
+        y = [3*i for i in range(len(selected_points))]
+        axs2.scatter(selected_points, y, marker=".",s=300,c="black",label="means")            
 
 def main():
     global phi_real
     runs = 1 # Don't use many runs while plotting, will open lots of graphs
     means, stdevs = [], []
+    measurements=100
+    print("> %d measurements/steps, GRF" % (measurements))
     for i in range(runs):
-        mean, stdev = adaptive_phase_estimation(100)
+        mean, stdev = adaptive_phase_estimation(measurements)
         means.append(mean)
         stdevs.append(stdev)
     median = np.percentile(means,50,interpolation='nearest')

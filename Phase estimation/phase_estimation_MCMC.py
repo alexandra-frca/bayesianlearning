@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Estimates a phase by using Markov Chain Monte Carlo (with Hamiltonian Monte  
@@ -289,7 +290,7 @@ def simulate_dynamics(data, initial_momentum, initial_particle, m, L, eta):
 # ...
 # always with: threshold=0.01
 first = True
-def hamiltonian_MC_step(data, point, m=0.05, L=10, eta=5*10**-4,
+def hamiltonian_MC_step(data, point, m=0.5, L=10, eta=10**-3,
                         threshold=0.01):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
@@ -336,7 +337,7 @@ def hamiltonian_MC_step(data, point, m=0.05, L=10, eta=5*10**-4,
     else:
         p = 0
     if (p < threshold):
-        proposal = "MH"
+        proposal = "RWM"
         MH = True
         new_point, p = metropolis_hastings_step(data,point)
         total_MH += 1
@@ -382,9 +383,9 @@ def plot_likelihood(data, points=None, point_types=None):
         "MH", and will be used to color and label the points (Default is None).
     '''
     fig, axs = plt.subplots(1,figsize=(15,10))
-    axs.set_title("Phase Estimation with MCMC (HMC/MH)",pad=20,fontsize=18)
-    axs.set_ylabel("Likelihood",fontsize=14)
-    axs.set_xlabel("Phase",fontsize=14)
+    #axs.set_title("Phase Estimation with MCMC (HMC/MH)",pad=20,fontsize=18)
+    axs.set_ylabel("Likelihood",fontsize=20)
+    axs.set_xlabel("Phase (radians)",fontsize=20)
     axs.tick_params(axis='y', colors="blue")
     axs.yaxis.label.set_color('blue')
     xx = np.arange(0.1,2*np.pi,0.1)
@@ -395,19 +396,19 @@ def plot_likelihood(data, points=None, point_types=None):
     
     if points is not None:
         axs2 = axs.twinx()
-        axs2.set_ylabel("Step number",fontsize=14)
+        axs2.set_ylabel("Step number",fontsize=20)
         
-        unique_types = ["Starting point","HMC","MH"]
+        unique_types = ["Starting point","HMC","RWM"]
         for unique_type in unique_types:
             xi = [points[i] for i in range(len(points)) 
                  if point_types[i]==unique_type]
             yi = [i for i in range(len(points)) if point_types[i]==unique_type]
             color = "red" if unique_type == "HMC" \
-                else "black" if unique_type == "MH" else "blue"
+                else "black" if unique_type == "RWM" else "blue"
             marker_type = "x" if unique_type == "Starting point" else "."
-            axs2.scatter(xi, yi, marker=marker_type,s=10, c=color,
+            axs2.scatter(xi, yi, marker=marker_type,s=300, c=color,
                          label=unique_type)
-        axs2.legend(loc='upper right',fontsize=14)
+        axs2.legend(loc='upper right',fontsize=20)
 
 def offline_phase_estimation(measurements,steps):
     '''
@@ -495,9 +496,11 @@ def adaptive_phase_estimation(measurements,steps):
 
 def main():
     global phi_real,steps, measurements
+    steps=30
     offline_phase_estimation(measurements,steps)
     #adaptive_phase_estimation(measurements,steps)
     
+    print("> %d measurements, %d steps, MCMC" % (measurements,steps))
     global total_HMC, accepted_HMC, total_MH, accepted_MH
     if (total_HMC+total_MH)!=0:
         print("* Percentage of HMC steps:  %.1f%%." 
