@@ -2,17 +2,13 @@
 """
 Hamiltonian learning implementation for a simple precession example, using both
 offline and adaptive Bayesian inference.
-
 The qubit is assumed to be initialized at state |+> for each measurement, and 
 to evolve under H = f*sigma_z/2, where f is the parameter to be estimated.
-
 Markov Chain Monte Carlo is used to sample from the posterior distribution,
 with Hamiltonian Monte Carlo and Metropolis-Hastings steps.
-
 The evolution of the standard deviations the "precisions" (the variance times 
 the cumulative evolution time) with the steps are plotted, and the final values 
 of these quantities (in addition to the actual error) are printed.
-
 The algorithm is repeated for a number of runs with randomly picked real
 values, and medians are taken over all of them to get the results and graphs.
 """
@@ -329,7 +325,7 @@ first = True
 
 # works well for m=0.1, L=20,eta=10**-3, threshold=0.01, measurements=100,
 #steps=100, increment=0.08
-def hamiltonian_MC_step(data, point, m=0.1, L=20, eta=5*10**-3,
+def hamiltonian_MC_step(data, point, m=0.1, L=10, eta=5*10**-3,
                         threshold=0.01):
     '''
     Performs a Hamiltonian Monte Carlo mutation on a given particle.
@@ -477,9 +473,9 @@ def plot_likelihood(data, points=None, point_types=None,plot_gradient=False):
         Whether to plot the gradient (Default is False).
     '''
     fig, axs = plt.subplots(1,figsize=(15,10))
-    axs.set_title("MCMC using HMC and MH proposals",pad=20,fontsize=18)
-    axs.set_ylabel("Likelihood",fontsize=14)
-    axs.set_xlabel("Frequency",fontsize=14)
+    #axs.set_title("MCMC using HMC and MH proposals",pad=20,fontsize=18)
+    axs.set_ylabel("Likelihood",fontsize=20)
+    axs.set_xlabel("Frequency",fontsize=20)
     axs.tick_params(axis='y', colors="blue")
     axs.yaxis.label.set_color('blue')
     
@@ -489,7 +485,7 @@ def plot_likelihood(data, points=None, point_types=None,plot_gradient=False):
     axs.plot(xx,yy,linewidth=1.75,alpha=0.5)
     if points is not None:
         axs2 = axs.twinx()
-        axs2.set_ylabel("Step number",fontsize=14)
+        axs2.set_ylabel("Step number",fontsize=20)
         
         unique_types = ["Starting point","HMC","MH"]
         for unique_type in unique_types:
@@ -499,9 +495,9 @@ def plot_likelihood(data, points=None, point_types=None,plot_gradient=False):
             color = "red" if unique_type == "HMC" \
                 else "black" if unique_type == "MH" else "blue"
             marker_type = "x" if unique_type == "Starting point" else "."
-            axs2.scatter(xi, yi, marker=marker_type,s=10, c=color,
+            axs2.scatter(xi, yi, marker=marker_type,s=300, c=color,
                          label=unique_type)
-        axs2.legend(loc='upper right',fontsize=14)
+        axs2.legend(loc='upper right',fontsize=20)
     if plot_gradient:
         fig2, axs2 = plt.subplots(1,figsize=(12,8))
         axs2.set_title("Gradient",fontsize=18)
@@ -512,11 +508,11 @@ def main():
     global f_real, alpha_real, N_particles, f_max, f_real
     start = f_max/2
     measurements = 100
-    steps=100
+    steps=30
      
     offline_estimation(start,f_max,measurements,steps)
-    print("n=%d; N=%d; measurements=%d; f_max=%d; alpha=%.2f; 1d, SHMC" 
-          % (N_particles,steps,measurements,f_max,alpha_real))
+    print("> steps=%d; measurements=%d; f_max=%d; alpha=%.2f; 1d, MCMC" 
+          % (steps,measurements,f_max,alpha_real))
     
     global total_HMC, accepted_HMC, total_MH, accepted_MH
     if (total_HMC+total_MH)!=0:
