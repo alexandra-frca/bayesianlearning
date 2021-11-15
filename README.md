@@ -1,4 +1,4 @@
-## Quantum parameter estimation with Bayesian learning (Masters project)
+## Quantum parameter estimation via Bayesian inference (Masters project)
 ### Alexandra Ramôa Alves | Engineering Physics - Physics of Information, University of Minho
 
 Each folder contains several scripts, generally a .pdf file with slides showing a selection of results, and sometimes data. 
