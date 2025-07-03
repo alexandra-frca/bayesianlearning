@@ -106,7 +106,7 @@ def likelihood(data,particle,coef=1):
         The annealed likelihood.
     '''
     
-    l = np.product([simulate_1(particle,t) if (outcome==1)
+    l = np.prod([simulate_1(particle,t) if (outcome==1)
                         else 1-simulate_1(particle,t) for (t,outcome) in data])
     l = l**coef
     return l
@@ -281,10 +281,10 @@ def metropolis_hastings_step(data, particle, coef, S=None, factor=0.01,
 
     # Compute the probabilities of transition for the acceptance probability.
     inverse_transition_prob = \
-        np.product([gaussian(particle[i],new_particle[i],
+        np.prod([gaussian(particle[i],new_particle[i],
                                                   Sigma[i][i]) 
                                           for i in range(dim)])
-    transition_prob = np.product([gaussian(new_particle[i],particle[i],
+    transition_prob = np.prod([gaussian(new_particle[i],particle[i],
                                        Sigma[i][i]) for i in range(dim)])
 
     p = likelihood(data,new_particle,coef=coef)*inverse_transition_prob/ \
@@ -775,6 +775,8 @@ def plot_distribution(distribution, real_parameters, note=""):
     note: str, optional
         Some string to be appended to the graph title (Default is ""). 
     '''
+    FONTSIZE = 30
+    SMALLERSIZE = 20
     n_graphs = dim//2
     for i in range(n_graphs):
         keys = list(distribution.keys())
@@ -785,9 +787,9 @@ def plot_distribution(distribution, real_parameters, note=""):
         plt.xlim([lbound[i],rbound[i]])
         plt.ylim([lbound[2*i+1],rbound[2*i+1]])
         
-        plt.title("Dimensions %d and %d %s" % (2*i+1,2*i+2,note))
-        plt.xlabel("Parameter number %d" % (2*i+1))
-        plt.ylabel("Parameter number %d" % (2*i+2))
+        # plt.title("Dimensions %d and %d %s" % (2*i+1,2*i+2,note))
+        plt.xlabel(r"Parameter number %d ($\omega_1$)" % (2*i+1),fontsize=FONTSIZE)
+        plt.ylabel(r"Parameter number %d ($\omega_1$)" % (2*i+2),fontsize=FONTSIZE)
         
         targets = list(itertools.permutations(real_parameters))
         axs.scatter([t[0] for t in targets],[t[1] for t in targets],
@@ -797,6 +799,7 @@ def plot_distribution(distribution, real_parameters, note=""):
         x2 = [particle[i+1] for particle in particles]
         weights = [distribution[key]*200 for key in keys]
         axs.scatter(x1, x2, marker='o',s=weights)
+        axs.tick_params(labelsize=SMALLERSIZE, length=15, width=2.5) 
         
     if dim%2!=0:
         # The last, unpaired dimension will be plotted alone with indexes as x
@@ -827,6 +830,8 @@ def plot_distribution(distribution, real_parameters, note=""):
  
         [axs.axhline(y=target, color='r',linewidth=0.75,linestyle="dashed") 
          for target in targets] 
+        
+    plt.savefig('figs/sghmc.png', bbox_inches='tight')
         
 def generate_prior(distribution_type="uniform"):    
     '''
@@ -901,7 +906,7 @@ def print_stats():
     Prints some relevant information relative to the run of the algorithm on
     the console.
     '''
-    print(("> n=%.2f^%d; N=%d; %dd sum of squared cosines"\ 
+    print(("> n=%.2f^%d; N=%d; %dd sum of squared cosines"
                            + "(possibly with subsampling, SG-H(S)MC)") % 
                           (N_particles**(1/dim),dim,measurements,dim))
     
@@ -1135,9 +1140,15 @@ def main():
         #real_parameters = np.array([0.25,0.77]) 
         #real_parameters = np.array([0.25,0.77,0.40,0.52])
     
-    measurements = 100
-    samples = 10
-    steps = 10
+    quick = False
+    if quick:
+        measurements = 10
+        samples = 2
+        steps = 2
+    else:
+        measurements = 100
+        samples = 10
+        steps = 10
     coefs = [i/steps for i in range(steps+1)] # These coefficients could be
     #chosen adaptively to keep the effective sample size near some target value
     #, but evenly spaced coefficients seem to work well for this problem and 
@@ -1149,7 +1160,7 @@ def main():
     print("Offline estimation: random times <= %d" % t_max)
     print("Tempering coefficients: ",coefs)
     
-    test_resampling, test_subsampling, test_no_resampling = True, False, False
+    test_resampling, test_subsampling, test_no_resampling = False, True, False
     
     if test_no_resampling: # Just for reference.
         N_particles = 15**dim

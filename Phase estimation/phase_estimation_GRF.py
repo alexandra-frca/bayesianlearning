@@ -82,7 +82,7 @@ def likelihood(data, test_phi):
         p = simulate_1(M,theta,test_phi)*(outcome==1)+\
             (1-simulate_1(M,theta,test_phi))*(outcome==0) 
     else:
-        p = np.product([likelihood(datum, test_phi) for datum in data])
+        p = np.prod([likelihood(datum, test_phi) for datum in data])
     return p 
 
 def adaptive_phase_estimation(measurements):
@@ -179,8 +179,63 @@ def adaptive_phase_estimation(measurements):
         if stdev==0:
             break
         
-    plot_likelihood(data,points=trajectory)
+    plot_likelihood_new(data,points=trajectory)
     return(mean,stdev)
+
+def plot_likelihood_new(data, points=None):
+    '''
+    new: put the step number axis on the left for clarity and increase tick 
+    number sizes. 
+
+    Plots - on the interval [0,2*pi[ - the likelihood function corresponding to 
+    the given data (which is the product of the individual likelihoods of each 
+    datum), as well as (optionally) a set of points (as an overposed scatter 
+    plot).
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    points: [float], optional
+        A list of consecutive x-coordinates to be plotted. The y-coordinates
+        will be obtained by enumeration, so that the upward direction of the 
+        y-axis denotes evolution (Default is None).
+    '''
+    FONTSIZE = 40
+    SMALLERSIZE = 30
+
+    fig, axs = plt.subplots(1,figsize=(15,10))
+    #axs.set_title("Phase Estimation (gaussians)",pad=20,fontsize=18)
+    axs.set_ylabel("Iteration number",fontsize=FONTSIZE)
+    axs.set_xlabel("Phase (radians)",fontsize=FONTSIZE)
+      
+
+    xx = np.arange(0.1,2*np.pi,0.1)
+    yy = [likelihood(data,x) for x in xx]
+    
+    global phi_real
+    # axs.axvline(phi_real,linestyle='--',color='gray',linewidth='1')
+    
+    axs2 = axs.twinx()
+    
+    axs2.plot(xx,yy,linewidth=5,alpha=0.5)
+    axs2.yaxis.label.set_color('blue')
+    axs2.set_ylabel("Likelihood",fontsize=FONTSIZE)
+    delta = 3
+    selected_points = points[::delta] # plot every third point only
+    y = [delta*i for i in range(len(selected_points))]
+    axs.scatter(selected_points, y, marker=".",s=500,c="black",label="means")   
+
+    plt.xticks(fontsize=SMALLERSIZE)
+    axs.tick_params(axis='both', which='major', labelsize=SMALLERSIZE, length=15, width=2.5) 
+    axs2.tick_params(colors = 'blue', axis='both', which='major', labelsize=SMALLERSIZE, length=15, width=2.5) 
+
+    axs2.yaxis.get_offset_text().set_fontsize(SMALLERSIZE)
+
+    plt.savefig('figs/ipe_grf.png', bbox_inches='tight')
+    
 
 def plot_likelihood(data, points=None):
     '''
@@ -217,7 +272,9 @@ def plot_likelihood(data, points=None):
         axs2.set_ylabel("Iteration number",fontsize=20)
         selected_points = points[::3] # plot every third point only
         y = [3*i for i in range(len(selected_points))]
-        axs2.scatter(selected_points, y, marker=".",s=300,c="black",label="means")            
+        axs2.scatter(selected_points, y, marker=".",s=300,c="black",label="means")     
+
+    plt.show()       
 
 def main():
     global phi_real

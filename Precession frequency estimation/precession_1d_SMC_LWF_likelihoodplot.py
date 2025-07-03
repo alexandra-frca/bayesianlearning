@@ -103,7 +103,7 @@ def likelihood(data, test_f):
         p = simulate_1(test_f,t)*(outcome==1)+\
             (1-simulate_1(test_f,t))*(outcome==0) 
     else:
-        p = np.product([likelihood(datum, test_f) for datum in data])
+        p = np.prod([likelihood(datum, test_f) for datum in data])
     return p 
 
 def SMCparameters(distribution, stdev=True):
@@ -288,8 +288,79 @@ def offline_estimation(distribution, f_max, measurements, increment=0.08):
         distribution, point = bayes_update(distribution, t, outcome)
         trajectory.append(point)
         #print(point,proposal)
-    plot_likelihood(data,points=trajectory)
+    plot_likelihood_new(data,points=trajectory)
     return point
+
+def plot_likelihood_new(data, points, point_types=None,plot_gradient=False, every=3):
+    '''
+    new: put the step number axis on the left for clarity and increase tick 
+    number sizes. 
+
+    Plots - on the interval [0,f_max[ - the likelihood function corresponding to 
+    the given data (which is the product of the individual likelihoods of each 
+    datum), as well as (optionally) the gradient of the log-likelihood and/or 
+    (also optionally) a set of points (as an overposed scatter plot).
+    If a list of labels indicating the methods used for the Markov transitions 
+    used to get each point is given, the points will be colored according to 
+    these labels.
+    
+    Parameters
+    ----------
+    data: [(int,float,int)]
+        A vector of experimental results and controls, each datum being of the 
+        form (M,theta,outcome), where 'M' and 'theta' are the controls used for 
+        each experiment and 'outcome' is its result.
+    points: [float], optional
+        A list of consecutive x-coordinates to be plotted. The y-coordinates
+        will be obtained by enumeration, so that the upward direction of the 
+        y-axis denotes evolution (Default is None).
+    point_types: [str], optional
+        A list giving the methods used for the Markov transitions, by the same 
+        order as in the list of points. These methods can be either "HMC" or 
+        "MH", and will be used to color and label the points (Default is None).
+    plot_gradient: bool, optional
+        Whether to plot the gradient (Default is False).
+    '''
+    FONTSIZE = 40
+    SMALLERSIZE = 30
+    fig, axs = plt.subplots(1,figsize=(15,10))
+    #axs.set_title("MCMC using HMC and MH proposals",pad=20,fontsize=18)
+    axs.set_ylabel("Step number",fontsize=FONTSIZE)
+    axs.set_xlabel("Frequency",fontsize=FONTSIZE)
+    
+    global f_max
+    xx = np.arange(0.1,f_max,0.01)
+    yy = [likelihood(data,x) for x in xx]
+    
+
+    if point_types is None:
+        selected_points = points[::every] # plot every #every point only
+        y = [every*i for i in range(len(selected_points))]
+        axs.scatter(selected_points, y, 
+                    s=100, c="black")
+        
+    # axs.legend(loc='best',fontsize=20)
+    
+    axs2 = axs.twinx()
+    axs2.yaxis.label.set_color('blue')
+    
+    axs2.set_ylabel("Likelihood",fontsize=FONTSIZE)
+    axs2.tick_params(axis='y', colors="blue", labelsize=SMALLERSIZE, length=15, width=2.5) 
+    axs2.plot(xx,yy,linewidth=5,alpha=0.5)
+        
+    if plot_gradient:
+        fig2, axs2 = plt.subplots(1,figsize=(12,8))
+        axs2.set_title("Gradient",fontsize=18)
+        yy2 = [U_gradient(data,x) for x in xx]
+        axs2.plot(xx,yy2)
+
+    plt.xticks(fontsize=SMALLERSIZE)
+    axs.tick_params(axis='both', which='major', labelsize=SMALLERSIZE, length=15, width=2.5) 
+    # axs.legend(loc ='best',fontsize=SMALLERSIZE)
+    axs2.yaxis.get_offset_text().set_fontsize(SMALLERSIZE)
+
+    plt.savefig('figs/precession_smc.png', bbox_inches='tight')
+
 
 def plot_likelihood(data, points=None, point_types=None,plot_gradient=False,every=3):
     '''

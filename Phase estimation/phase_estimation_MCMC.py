@@ -87,7 +87,7 @@ def likelihood(data, test_phi):
         p = simulate_1(M,theta,test_phi)*(outcome==1)+\
             (1-simulate_1(M,theta,test_phi))*(outcome==0) 
     else:
-        p = np.product([likelihood(datum, test_phi) for datum in data])
+        p = np.prod([likelihood(datum, test_phi) for datum in data])
     return p 
     
 
@@ -356,6 +356,49 @@ def hamiltonian_MC_step(data, point, m=0.5, L=10, eta=10**-3,
     else:
         return(point, proposal)
 
+def plot_likelihood_new(data, points, point_types=None,plot_gradient=False):
+    '''
+    new: put the step number axis on the left for clarity and increase tick 
+    number sizes. 
+    '''
+    FONTSIZE = 40
+    SMALLERSIZE = 30
+
+    fig, axs = plt.subplots(1,figsize=(15,10))
+    #axs.set_title("MCMC using HMC and MH proposals",pad=20,fontsize=18)
+    axs.set_ylabel("Step number",fontsize=FONTSIZE)
+    axs.set_xlabel("Frequency",fontsize=FONTSIZE)
+    
+    xx = np.arange(0.1,2*np.pi,0.01)
+    yy = [likelihood(data,x) for x in xx]
+    
+        
+    unique_types = ["Starting point","HMC","RWM"]
+    for unique_type in unique_types:
+        xi = [points[i] for i in range(len(points)) 
+                if point_types[i]==unique_type]
+        yi = [i for i in range(len(points)) if point_types[i]==unique_type]
+        color = "red" if unique_type == "HMC" \
+            else "black" if unique_type == "RWM" else "blue"
+        marker_type = "x" if unique_type == "Starting point" else "."
+        axs.scatter(xi, yi, marker=marker_type,s=500, c=color,
+                        label=unique_type)
+    
+    
+    axs2 = axs.twinx()
+    axs2.yaxis.label.set_color('blue')
+    
+    axs2.set_ylabel("Likelihood",fontsize=FONTSIZE)
+    axs2.plot(xx,yy,linewidth=5,alpha=0.5)
+
+    plt.xticks(fontsize=SMALLERSIZE)
+    axs.tick_params(axis='both', which='major', labelsize=SMALLERSIZE, length=15, width=2.5) 
+    axs2.tick_params(colors="blue", axis='both', which='major', labelsize=SMALLERSIZE, length=15, width=2.5) 
+    axs.legend(loc='best',fontsize=SMALLERSIZE)
+    axs2.yaxis.get_offset_text().set_fontsize(SMALLERSIZE)
+
+    plt.savefig('figs/ipe_mcmc.png', bbox_inches='tight')
+    
     
 def plot_likelihood(data, points=None, point_types=None):
     '''
@@ -438,7 +481,7 @@ def offline_phase_estimation(measurements,steps):
         proposals.append(proposal)
         #print(point)
     
-    plot_likelihood(data,points=trajectory, point_types=proposals)
+    plot_likelihood_new(data,points=trajectory, point_types=proposals)
 
 def adaptive_phase_estimation(measurements,steps):
     '''
