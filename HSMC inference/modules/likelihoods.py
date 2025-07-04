@@ -73,7 +73,7 @@ def likelihood(data,particle):
     p: float
         The estimated probability of obtaining the input outcome. 
     '''
-    p = np.product([simulate_1(particle,t) if (outcome==1)
+    p = np.prod([simulate_1(particle,t) if (outcome==1)
                         else 1-simulate_1(particle,t) for (t,outcome) in data])
     return p 
 

@@ -97,7 +97,7 @@ def likelihood(data,particle):
         t,outcome = data if len(data)==2 else data[0] # May be wrapped in array.
         p = simulate_1(particle,t) if outcome==1 else (1-simulate_1(particle,t))
     else:
-        p = np.product([likelihood(datum, particle) for datum in data])
+        p = np.prod([likelihood(datum, particle) for datum in data])
     return p 
 
 def target_U(data,particle):
@@ -693,16 +693,20 @@ def show_results(off_runs,off_dicts,T1s,parameters):
     fig, axs = plt.subplots(1,figsize=(12,8))
 
     p=0
+    FONTSIZE = 40
+    SMALLERSIZE = 30
     x1 = np.array([i for i in range(steps+1)])
     oy1 = np.array([off_stdevs[p][i] for i in range(steps+1)])
-    axs.set_ylabel(r'$\sigma$')
+    axs.set_ylabel('Standard deviation',fontsize=FONTSIZE)
     axs.plot(x1, oy1, color='red', label='offline estimation')
     oq11 = np.array([off_stdevs_q1s[p][i] for i in range(steps+1)])
     oq31 = np.array([off_stdevs_q3s[p][i] for i in range(steps+1)])
     axs.fill_between(x1,oq11,oq31,alpha=0.1,color='red')
-    axs.set_title('T1 estimation')
-    axs.set_xlabel('Iteration number')
-    axs.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # axs.set_title('T1 estimation')
+    axs.set_xlabel('Iteration number',fontsize=FONTSIZE)
+    axs.tick_params(labelsize=SMALLERSIZE, length=15, width=2.5) 
+    # axs.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig('figs/T1est.png', bbox_inches='tight')
     
 def print_stats(runs,steps):
     print("* Average number of resampler calls: %d (%d%%)." 
@@ -801,7 +805,7 @@ def offline_estimation(distribution, data,
     print("")
     if plot:
         plot_kde(distribution,note=" (final distribution)")
-    return distribution, (means, stdevs, _)
+    return distribution, (means, stdevs, None)
 
 def get_data(upload=False, filename=None, steps=75, tmin=1, tmax=3.5,rev=False,
              rep=1, rand=False):
@@ -845,7 +849,8 @@ def main():
     print("> T1 = %.2f" % T1_real)
     
     unique_ts = 75
-    filename_start = 'guadalupe_amplitude_damping_data[2.0,49[T1_est=49_sched=75_nshots=20'
+    
+    filename_start = 'IBMQ experiments\IBMQ data\T1 (10 runs, Guadalupe)/guadalupe_amplitude_damping_data[2.0,49[T1_est=49_sched=75_nshots=20'
     ndatasets = 10
     datasets = []
     for i in range(ndatasets):
@@ -854,7 +859,7 @@ def main():
                         tmin=1, tmax=70, rev=True, rep=20, rand=False)
         datasets.append(data)
         
-    runs_each = 10
+    runs_each = 1
     runs = ndatasets*runs_each
     prior = uniform_prior()
     print("> Using %d datasets for %d runs each." % (ndatasets, runs_each))

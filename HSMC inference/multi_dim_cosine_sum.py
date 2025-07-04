@@ -15,13 +15,6 @@ Single or multiple runs can be performed; in the latter case information about
 the set of runs as a group is printed.
 """
 
-reload = True
-if reload:
-    importlib.reload(sys.modules["global_vars"])
-    importlib.reload(sys.modules["modules.likelihoods"])
-    importlib.reload(sys.modules["modules.resampler"])
-    importlib.reload(sys.modules["modules.distributions"])
-
 import pprint, copy, itertools, random, importlib, matplotlib.pyplot as plt
 from autograd import grad, numpy as np
 import global_vars as glob
@@ -35,7 +28,7 @@ from modules.distributions import SMCparameters, plot_distribution, \
 
 np.seterr(all='warn')
 
-glob.dim = 2
+glob.dim = 4
 glob.lbound = np.zeros(glob.dim) # The left boundaries for the parameters.
 glob.rbound = np.ones(glob.dim) # The right boundaries for the parameters.
 
@@ -238,7 +231,7 @@ def run_single():
     global first_bayes_update, first_offline_estimation
     global real_parameters, N_particles, measurements
     dim = glob.dim
-    glob.measurements = 100
+    glob.measurements = 250
 
     # To initialize some constants (for printing information on the console):
     init_distributions() 
@@ -249,8 +242,8 @@ def run_single():
     if random_parameters:
         glob.real_parameters = np.array([random.random() for d in range(dim)])
     else:
-        glob.real_parameters = np.array([0.25,0.77]) 
-        #real_parameters = np.array([0.25,0.77,0.40,0.52])
+        # glob.real_parameters = np.array([0.25,0.77]) 
+        glob.real_parameters = np.array([0.25,0.77,0.40,0.52])
     
     # For ease of use since we don't want to change these variables anymore:
     real_parameters, measurements = glob.real_parameters, glob.measurements
@@ -262,7 +255,7 @@ def run_single():
     
     test_resampling, test_no_resampling = True, False
 
-    glob.N_particles = 20**dim #'N_particles' particles will be used for each 
+    glob.N_particles = 12**dim #'N_particles' particles will be used for each 
     #group. Should be a power with integer base and exponent `dim` so the 
     #particles can be neatly arranged into a cubic latice for the prior (unless 
     #not using a uniform distribution/lattice).
@@ -401,4 +394,5 @@ def run_several(nruns):
     print("_____________________________________________")
     glob.print_info()   
 
-run_several(20)
+# run_several(20)
+run_single()

@@ -78,6 +78,8 @@ def plot_distribution(distribution, real_parameters, note=""):
     note: str, optional
         Some string to be appended to the graph title (Default is ""). 
     '''
+    FONTSIZE = 30
+    SMALLERSIZE = 20
     dim, lbound, rbound = glob.dim, glob.lbound, glob.rbound
     n_graphs = dim//2
     for i in range(n_graphs):
@@ -89,18 +91,20 @@ def plot_distribution(distribution, real_parameters, note=""):
         plt.xlim([lbound[i],rbound[i]])
         plt.ylim([lbound[2*i+1],rbound[2*i+1]])
         
-        plt.title("Dimensions %d and %d %s" % (2*i+1,2*i+2,note))
-        plt.xlabel("Parameter number %d" % (2*i+1))
-        plt.ylabel("Parameter number %d" % (2*i+2))
+        # plt.title("Dimensions %d and %d %s" % (2*i+1,2*i+2,note))
+        plt.xlabel(r"Parameter number %d ($\omega_1$)" % (2*i+1),fontsize=FONTSIZE)
+        plt.ylabel(r"Parameter number %d ($\omega_1$)" % (2*i+2),fontsize=FONTSIZE)
         
         targets = list(itertools.permutations(real_parameters))
         axs.scatter([t[0] for t in targets],[t[1] for t in targets],
-                    marker='x',s=100, color='red')
+                    marker='x',s=400, color='red')
         
         x1 = [particle[i] for particle in particles]
         x2 = [particle[i+1] for particle in particles]
-        weights = [distribution[key]*200 for key in keys]
+        weights = [distribution[key]*400 for key in keys]
         axs.scatter(x1, x2, marker='o',s=weights)
+        axs.tick_params(labelsize=SMALLERSIZE, length=15, width=2.5) 
+        plt.savefig(f'figs/smc{dim}d_{i}.png', bbox_inches='tight')
         
     if dim%2!=0:
         # The last, unpaired dimension will be plotted alone with indexes as x

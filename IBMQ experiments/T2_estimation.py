@@ -98,7 +98,7 @@ def likelihood(data,particle):
         t,outcome = data if len(data)==2 else data[0] # May be wrapped in array.
         p = simulate_1(particle,t) if outcome==1 else (1-simulate_1(particle,t))
     else:
-        p = np.product([likelihood(datum, particle) for datum in data])
+        p = np.prod([likelihood(datum, particle) for datum in data])
     return p 
 
 def target_U(data,particle):
@@ -696,16 +696,21 @@ def show_results(off_runs,off_dicts,T2s,parameters):
     fig, axs = plt.subplots(1,figsize=(12,8))
 
     p=0
+    FONTSIZE = 40
+    SMALLERSIZE = 30
     x1 = np.array([i for i in range(steps+1)])
     oy1 = np.array([off_stdevs[p][i] for i in range(steps+1)])
-    axs.set_ylabel(r'$\sigma$')
+    axs.set_ylabel('Standard deviation',fontsize=FONTSIZE)
     axs.plot(x1, oy1, color='red', label='offline estimation')
     oq11 = np.array([off_stdevs_q1s[p][i] for i in range(steps+1)])
     oq31 = np.array([off_stdevs_q3s[p][i] for i in range(steps+1)])
     axs.fill_between(x1,oq11,oq31,alpha=0.1,color='red')
-    axs.set_title('T2 estimation (echoed)')
-    axs.set_xlabel('Iteration number')
-    axs.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # axs.set_title('T2 estimation (echoed)')
+    axs.set_xlabel('Iteration number',fontsize=FONTSIZE)
+    axs.tick_params(labelsize=SMALLERSIZE, length=15, width=2.5) 
+    # axs.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    plt.savefig('figs/T2est.png', bbox_inches='tight')
     
 def print_stats(runs,steps):
     print("* Average number of resampler calls: %d (%d%%)." 
@@ -734,7 +739,7 @@ def uniform_prior():
     return prior
 
 def offline_estimation(distribution, data,
-                       plot=False):
+                       plot=False, reverse = False):
     '''
     Estimates the precession frequency by defining a set of experiments, 
     performing them, and updating a given prior distribution according to their 
@@ -774,6 +779,8 @@ def offline_estimation(distribution, data,
     means.append(current_mean)
     stdevs.append(current_stdev) 
 
+    if reverse: 
+        data = data[::-1]
     updates = len(data)
     if updates < 10:
         progress_interval = 100/updates
@@ -804,9 +811,9 @@ def offline_estimation(distribution, data,
     print("")
     if plot:
         plot_kde(distribution,note=" (final distribution)")
-    return distribution, (means, stdevs, _)
+    return distribution, (means, stdevs, None)
 
-def get_data(upload=False, filename=None, steps=75, tmin=1, tmax=3.5,rev=False,
+def get_data(upload=True, filename=None, steps=75, tmin=1, tmax=3.5,rev=False,
              rep=1, rand=False):
     if upload:
         print(" (approximately).")
@@ -856,8 +863,8 @@ def main():
     print("> T2 = %.2f" % T2_real, end="")
     
     unique_ts = 75
-    #filename_start = 'spin_echo_data[0.2,100[T2_est=77_sched=75_nshots=20'
-    filename_start = 'casablanca_spin_echo_data(h)_t∈[0.4,115.2[T2_est=57_sched=75_shots=20'
+    filename_start = 'spin_echo_data[0.2,100[T2_est=77_sched=75_nshots=20'
+    # filename_start = 'casablanca_spin_echo_data(h)_t∈[0.4,115.2[T2_est=57_sched=75_shots=20'
     ndatasets = 1
     datasets = []
     for i in range(ndatasets):
@@ -867,6 +874,7 @@ def main():
         datasets.append(data)
         
     runs_each = 1
+    reverse = True
     runs = ndatasets*runs_each
     prior = uniform_prior()
     print("> Using %d datasets for %d runs each." % (ndatasets, runs_each))
@@ -882,7 +890,8 @@ def main():
               data = datasets[i]
               for j in range(runs_each):
                   (dist,sequences) = offline_estimation(copy.deepcopy(prior),
-                                                        data,plot=False)
+                                                        data,plot=False, 
+                                                        reverse = reverse)
                   off_runs.append(sequences)
                   off_dicts.append(dist)
                   steps = len(sequences[0])-1
